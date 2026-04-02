@@ -1,6 +1,6 @@
 use crate::value::DbValue;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Filter {
     // --- Null Checks ---
     IsNull(String),
@@ -15,8 +15,12 @@ pub enum Filter {
     Gte(String, DbValue),
 
     // --- Pattern Matching ---
-    Like(String, String),
-    NotLike(String, String),
+    StartsWith(String, DbValue),
+    NotStartsWith(String, DbValue),
+    EndsWith(String, DbValue),
+    NotEndsWith(String, DbValue),
+    Contains(String, DbValue),
+    NotContains(String, DbValue),
 
     // --- Regex Matching ---
     Regex(String, String),

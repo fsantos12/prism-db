@@ -3,35 +3,7 @@ use serde_json::Value as JsonValue;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-#[derive(Debug, PartialEq)]
-pub enum Kind {
-    Integer,
-    FloatingPoint,
-    Boolean,
-    Text,
-    Temporal,
-    Binary,
-    Uuid,
-    Json
-}
-
-impl Kind {
-    pub fn is_comparable(&self, other: &Kind) -> bool {
-        matches!(
-            (self, other),
-            (Kind::Integer, Kind::Integer) | (Kind::Integer, Kind::FloatingPoint) | (Kind::Integer, Kind::Boolean) |
-            (Kind::FloatingPoint, Kind::Integer) | (Kind::FloatingPoint, Kind::FloatingPoint) | (Kind::FloatingPoint, Kind::Boolean) |
-            (Kind::Boolean, Kind::Boolean) | (Kind::Boolean, Kind::Integer) | (Kind::Boolean, Kind::FloatingPoint) |
-            (Kind::Text, Kind::Text) |
-            (Kind::Temporal, Kind::Temporal) |
-            (Kind::Binary, Kind::Binary) |
-            (Kind::Uuid, Kind::Uuid) |
-            (Kind::Json, Kind::Json)
-        )
-    }    
-}
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum DbValue {
     I8(Option<i8>), I16(Option<i16>), I32(Option<i32>), I64(Option<i64>), I128(Option<i128>),
     U8(Option<u8>), U16(Option<u16>), U32(Option<u32>), U64(Option<u64>), U128(Option<u128>),
@@ -45,20 +17,6 @@ pub enum DbValue {
 }
 
 impl DbValue {
-    pub fn kind(&self) -> Kind {
-        match self {
-            DbValue::I8(_) | DbValue::I16(_) | DbValue::I32(_) | DbValue::I64(_) | DbValue::I128(_) |
-            DbValue::U8(_) | DbValue::U16(_) | DbValue::U32(_) | DbValue::U64(_) | DbValue::U128(_) => Kind::Integer,
-            DbValue::F32(_) | DbValue::F64(_) | DbValue::Decimal(_) => Kind::FloatingPoint,
-            DbValue::Bool(_) => Kind::Boolean,
-            DbValue::Char(_) | DbValue::String(_) => Kind::Text,
-            DbValue::Date(_) | DbValue::Time(_) | DbValue::Timestamp(_) | DbValue::Timestamptz(_) => Kind::Temporal,
-            DbValue::Bytes(_) => Kind::Binary,
-            DbValue::Uuid(_) => Kind::Uuid,
-            DbValue::Json(_) => Kind::Json
-        }
-    }
-
     pub fn is_null(&self) -> bool {
         match self {
             DbValue::I8(v) => v.is_none(),
@@ -85,10 +43,6 @@ impl DbValue {
             DbValue::Uuid(v) => v.is_none(),
             DbValue::Json(v) => v.is_none()
         }
-    }
-
-    pub fn is_comparable(&self, other: &DbValue) -> bool {
-        self.kind().is_comparable(&other.kind())
     }
 }
 

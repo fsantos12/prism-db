@@ -75,12 +75,28 @@ impl FilterDefinition {
     }
 
     // --- Pattern Matching ---
-    pub fn like<F: Into<String>, P: Into<String>>(self, field: F, pattern: P) -> Self {
-        self.push(Filter::Like(field.into(), pattern.into()))
+    pub fn starts_with<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::StartsWith(field.into(), value.into()))
     }
 
-    pub fn not_like<F: Into<String>, P: Into<String>>(self, field: F, pattern: P) -> Self {
-        self.push(Filter::NotLike(field.into(), pattern.into()))
+    pub fn not_starts_with<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::NotStartsWith(field.into(), value.into()))
+    }
+
+    pub fn ends_with<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::EndsWith(field.into(), value.into()))
+    }
+
+    pub fn not_ends_with<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::NotEndsWith(field.into(), value.into()))
+    }
+
+    pub fn contains<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::Contains(field.into(), value.into()))
+    }
+
+    pub fn not_contains<F: Into<String>, V: Into<DbValue>>(self, field: F, value: V) -> Self {
+        self.push(Filter::NotContains(field.into(), value.into()))
     }
 
     // --- Regex Matching ---
