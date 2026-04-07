@@ -1,5 +1,5 @@
 use crate::{query::{
-    filters::FilterDefinition, groups::GroupDefinition, projections::ProjectionDefinition, sorts::SortDefinition
+    filters::{FilterBuilder, FilterDefinition}, groups::{GroupBuilder, GroupDefinition}, projections::{ProjectionBuilder, ProjectionDefinition}, sorts::{SortBuilder, SortDefinition}
 }, types::{DbRow, DbValue}};
 
 pub mod projections;
@@ -18,39 +18,56 @@ pub struct FindQuery {
     pub sorts: SortDefinition,
     pub groups: GroupDefinition,
     pub limit: Option<usize>,
-    pub offset: Option<usize>
+    pub offset: Option<usize>,
 }
 
 impl FindQuery {
-    pub fn new(collection: impl Into<String>) -> Self {
+    pub fn new<S: Into<String>>(collection: S) -> Self {
         Self {
             collection: collection.into(),
-            projections: ProjectionDefinition::empty(),
-            filters: FilterDefinition::empty(),
-            sorts: SortDefinition::empty(),
-            groups: GroupDefinition::empty(),
+            projections: Vec::new(),
+            filters: Vec::new(),
+            sorts: Vec::new(),
+            groups: Vec::new(),
             limit: None,
-            offset: None
+            offset: None,
         }
     }
 
-    pub fn project(mut self, projections: ProjectionDefinition) -> Self {
-        self.projections = projections;
+    /// Selects specific fields or aggregations using a closure.
+    pub fn project<F>(mut self, build: F) -> Self 
+    where F: FnOnce(ProjectionBuilder) -> ProjectionBuilder {
+        let builder = build(ProjectionBuilder::new());
+        self.projections.extend(builder.build());
         self
     }
 
-    pub fn filter(mut self, filters: FilterDefinition) -> Self {
-        self.filters = filters;
+    /// Adds filter conditions. Calling this multiple times appends with implicit AND logic.
+    pub fn filter<F>(mut self, build: F) -> Self 
+    where F: FnOnce(FilterBuilder) -> FilterBuilder {
+        let builder = build(FilterBuilder::new());
+        self.filters.extend(builder.build());
         self
     }
 
-    pub fn order_by(mut self, sorts: SortDefinition) -> Self {
-        self.sorts = sorts;
+    pub fn with_filters(mut self, filters: FilterDefinition) -> Self {
+        self.filters.extend(filters);
         self
     }
 
-    pub fn group_by(mut self, groups: GroupDefinition) -> Self {
-        self.groups = groups;
+    /// Defines the ordering of the result set.
+    pub fn order_by<F>(mut self, build: F) -> Self 
+    where F: FnOnce(SortBuilder) -> SortBuilder {
+        let builder = build(SortBuilder::new());
+        self.sorts.extend(builder.build());
+        self
+    }
+
+    /// Defines groupings for aggregate queries.
+    pub fn group_by<F>(mut self, build: F) -> Self 
+    where F: FnOnce(GroupBuilder) -> GroupBuilder {
+        let builder = build(GroupBuilder::new());
+        self.groups.extend(builder.build());
         self
     }
 
@@ -71,40 +88,33 @@ impl FindQuery {
 #[derive(Debug, Clone)]
 pub struct InsertQuery {
     pub collection: String,
-    pub values: Vec<DbRow>
+    pub values: Vec<DbRow>,
 }
 
 impl InsertQuery {
-    pub fn new(collection: impl Into<String>) -> Self {
+    pub fn new<S: Into<String>>(collection: S) -> Self {
         Self {
             collection: collection.into(),
-            values: Vec::new()
+            values: Vec::new(),
         }
     }
 
-    pub fn add_row(mut self, row: DbRow) -> Self {
-        self.values.push(row);
-        self
-    }
-
-    pub fn add_rows<I>(mut self, rows: I) -> Self 
-    where I: IntoIterator<Item = DbRow> {
-        self.values.extend(rows);
-        self
-    }
-
-    pub fn insert<I, K, V>(self, row: I) -> Self
+    /// Inserts a single row from a collection of key-value pairs.
+    pub fn insert<I, K, V>(mut self, row: I) -> Self
     where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
         let db_row: DbRow = row.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
-        self.add_row(db_row)
+        self.values.push(db_row);
+        self
     }
 
-    pub fn bulk_insert<I, R, K, V>(self, rows: I) -> Self
+    /// Batch inserts multiple rows efficiently.
+    pub fn bulk_insert<I, R, K, V>(mut self, rows: I) -> Self
     where I: IntoIterator<Item = R>, R: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
-        let prepared_rows = rows.into_iter().map(|row| {
-            row.into_iter().map(|(k, v)| (k.into(), v.into())).collect::<DbRow>()
-        });
-        self.add_rows(prepared_rows)
+        for row in rows {
+            let db_row: DbRow = row.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
+            self.values.push(db_row);
+        }
+        self
     }
 }
 
@@ -119,11 +129,11 @@ pub struct UpdateQuery {
 }
 
 impl UpdateQuery {
-    pub fn new(collection: impl Into<String>) -> Self {
+    pub fn new<S: Into<String>>(collection: S) -> Self {
         Self {
             collection: collection.into(),
             updates: DbRow::new(),
-            filters: FilterDefinition::empty(),
+            filters: Vec::new(),
         }
     }
 
@@ -137,16 +147,15 @@ impl UpdateQuery {
         self
     }
 
-    pub fn set_values<I, K, V>(mut self, values: I) -> Self 
-    where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
-        for (k, v) in values {
-            self.updates.insert(k, v);
-        }
+    pub fn filter<F>(mut self, build: F) -> Self 
+    where F: FnOnce(FilterBuilder) -> FilterBuilder {
+        let builder = build(FilterBuilder::new());
+        self.filters.extend(builder.build());
         self
     }
 
-    pub fn filter(mut self, filters: FilterDefinition) -> Self {
-        self.filters = filters;
+    pub fn with_filters(mut self, filters: FilterDefinition) -> Self {
+        self.filters.extend(filters);
         self
     }
 }
@@ -164,12 +173,20 @@ impl DeleteQuery {
     pub fn new(collection: impl Into<String>) -> Self {
         Self {
             collection: collection.into(),
-            filters: FilterDefinition::empty(),
+            filters: Vec::new(),
         }
     }
 
-    pub fn filter(mut self, filters: FilterDefinition) -> Self {
-        self.filters = filters;
+    /// Adds filter conditions. Calling this multiple times appends with implicit AND logic.
+    pub fn filter<F>(mut self, build: F) -> Self 
+    where F: FnOnce(FilterBuilder) -> FilterBuilder {
+        let builder = build(FilterBuilder::new());
+        self.filters.extend(builder.build());
+        self
+    }
+
+    pub fn with_filters(mut self, filters: FilterDefinition) -> Self {
+        self.filters.extend(filters);
         self
     }
 }
@@ -177,7 +194,7 @@ impl DeleteQuery {
 // ==========================================
 // Query
 // ==========================================
-pub struct  Query;
+pub struct Query;
 
 impl Query {
     pub fn find<C: Into<String>>(collection: C) -> FindQuery {

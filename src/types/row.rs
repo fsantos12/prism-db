@@ -127,6 +127,14 @@ impl FromIterator<(String, DbValue)> for DbRow {
     }
 }
 
+impl IntoIterator for DbRow {
+    type Item = (String, DbValue);
+    type IntoIter = std::collections::hash_map::IntoIter<String, DbValue>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 pub trait FromDbRow: Sized {
     fn from_db_row(row: DbRow) -> Result<Self, DbError>;
 }

@@ -1,40 +1,42 @@
 use crate::types::DbValue;
 
+pub type FilterDefinition = Vec<Filter>;
+
 #[derive(Debug, Clone)]
 pub enum Filter {
     // --- Null Checks ---
-    IsNull(String),
-    IsNotNull(String),
+    IsNull(Box<String>),
+    IsNotNull(Box<String>),
 
     // --- Basic Comparisons ---
-    Eq(String, DbValue),
-    Neq(String, DbValue),
-    Lt(String, DbValue),
-    Lte(String, DbValue),
-    Gt(String, DbValue),
-    Gte(String, DbValue),
+    Eq(Box<String>, DbValue),
+    Neq(Box<String>, DbValue),
+    Lt(Box<String>, DbValue),
+    Lte(Box<String>, DbValue),
+    Gt(Box<String>, DbValue),
+    Gte(Box<String>, DbValue),
 
     // --- Pattern Matching ---
-    StartsWith(String, DbValue),
-    NotStartsWith(String, DbValue),
-    EndsWith(String, DbValue),
-    NotEndsWith(String, DbValue),
-    Contains(String, DbValue),
-    NotContains(String, DbValue),
+    StartsWith(Box<String>, DbValue),
+    NotStartsWith(Box<String>, DbValue),
+    EndsWith(Box<String>, DbValue),
+    NotEndsWith(Box<String>, DbValue),
+    Contains(Box<String>, DbValue),
+    NotContains(Box<String>, DbValue),
 
     // --- Regex Matching ---
-    Regex(String, String),
+    Regex(Box<String>, Box<String>),
 
     // --- Range Checks ---
-    Between(String, DbValue, DbValue),
-    NotBetween(String, DbValue, DbValue),
+    Between(Box<String>, Box<(DbValue, DbValue)>),
+    NotBetween(Box<String>, Box<(DbValue, DbValue)>),
 
     // --- Set Membership ---
-    In(String, Vec<DbValue>),
-    NotIn(String, Vec<DbValue>),
+    In(Box<String>, Box<Vec<DbValue>>),
+    NotIn(Box<String>, Box<Vec<DbValue>>),
 
     // --- Logical Operators ---
-    And(Vec<Filter>),
-    Or(Vec<Filter>),
-    Not(Box<Filter>)
+    And(Box<FilterDefinition>),
+    Or(Box<FilterDefinition>),
+    Not(Box<Filter>),
 }

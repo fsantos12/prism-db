@@ -1,5 +1,6 @@
 mod sort;
-mod sort_definition;
+mod sort_builder;
 
+pub use sort::SortDefinition;
 pub use sort::Sort;
-pub use sort_definition::SortDefinition;
+pub use sort_builder::SortBuilder;

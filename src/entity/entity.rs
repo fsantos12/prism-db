@@ -1,19 +1,14 @@
-use async_trait::async_trait;
+use crate::{DbContext, query::{Query, filters::{FilterBuilder, FilterDefinition}}, types::{DbError, DbRow, DbValue, FromDbRow}};
 
-use crate::{
-    driver::driver::Driver,
-    entity::context::DbContext,
-    query::{DeleteQuery, InsertQuery, UpdateQuery, filters::FilterDefinition},
-    types::{DbError, DbRow, DbValue, FromDbRow}
-};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DbEntityState {
-    Detached,
-    Unchanged,
+    /// Entity is new and not yet in the DB.
     Added,
-    Modified,
+    /// Entity is known to the DB and tracked for changes.
+    Tracked,
+    /// Entity has been marked for removal or deleted.
     Deleted,
+    /// Entity is no longer managed by the context.
+    Detached,
 }
 
 pub type DbEntityKey = Vec<(String, DbValue)>;
@@ -21,14 +16,6 @@ pub type DbEntityKey = Vec<(String, DbValue)>;
 pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static {
     fn collection_name() -> &'static str;
     fn key(&self) -> DbEntityKey;
-
-    /// Generates a unique string identifier for the tracking HashMap based on the collection name and key values. This is used internally to track entities without needing to store the entire key structure.
-    fn key_hash(&self) -> String {
-        let keys: Vec<String> = self.key().into_iter()
-            .map(|(_, v)| format!("{:?}", v))
-            .collect();
-        format!("{}::{}", Self::collection_name(), keys.join("::"))
-    }
 
     /// Generates a database filter safely based on the key fields. Throws an error if the key is empty to prevent mass operations.
     fn key_filter(&self) -> Result<FilterDefinition, DbError> {
@@ -40,126 +27,89 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static
             )));
         }
 
-        let mut filter = FilterDefinition::empty();
+        let mut filter = FilterBuilder::new();
         for (field, value) in key_pairs {
             filter = filter.eq(field, value);
         }
 
-        Ok(filter)
+        Ok(filter.build())
     }
 }
 
-/// The type-erased trait so DbContext can store different entities in the same HashMap
-#[async_trait]
-pub trait DbTrackedEntity: Send + Sync {
-    fn set_state(&mut self, state: DbEntityState);
-    async fn save_to_db(&mut self, driver: &dyn Driver) -> Result<(), DbError>;
-}
-
-/// The Smart Wrapper for your database rows
-#[derive(Clone)]
 pub struct DbEntity<T: DbEntityModel> {
-    pub inner: T,
+    pub entity: T,
     snapshot: Option<DbRow>,
-    state: DbEntityState,
+    state: DbEntityState
 }
 
-impl<T: DbEntityModel + Clone> DbEntity<T> {
-    /// Use this for brand new records (translates to INSERT)
-    pub fn new(inner: T) -> Self {
+impl<T: DbEntityModel> DbEntity<T> {
+    pub fn new(entity: T) -> Self {
         Self {
-            inner,
+            entity,
             snapshot: None,
-            state: DbEntityState::Detached,
+            state: DbEntityState::Added
         }
     }
 
-    /// Use this when loading records from the database
-    pub fn from_snapshot(inner: T, snapshot: DbRow) -> Self {
+    /// Internal: Wraps data loaded from the database.
+    pub(crate) fn from_db(entity: T, row: DbRow) -> Self {
         Self {
-            inner,
-            snapshot: Some(snapshot),
-            state: DbEntityState::Unchanged,
+            entity,
+            snapshot: Some(row),
+            state: DbEntityState::Tracked,
         }
     }
 
-    /// Read the current state for the DbContext to check
-    pub fn state(&self) -> DbEntityState {
-        self.state
-    }
+    fn dirty_fields(&self) -> DbRow {
+        let current: DbRow = self.entity.clone().into();
+        let mut updates = DbRow::new();
 
-    /// Mark the entity for deletion
-    pub fn delete(&mut self) {
-        self.state = DbEntityState::Deleted;
-    }
-
-    /// Flags the entity as modified and registers it with the DbContext.
-    /// The database UPDATE will be executed when context.save_changes() is called.
-    pub fn save(&mut self, context: &DbContext) {
-        if self.state == DbEntityState::Unchanged { self.state = DbEntityState::Modified; }
-        let hash = self.inner.key_hash();
-        context.register_change(hash, Box::new(self.clone()));
-    }
-}
-
-#[async_trait]
-impl<T: DbEntityModel + Clone> DbTrackedEntity for DbEntity<T> {
-    fn set_state(&mut self, state: DbEntityState) {
-        self.state = state;
-    }
-
-    async fn save_to_db(&mut self, driver: &dyn Driver) -> Result<(), DbError> {
-        match self.state {
-            DbEntityState::Added => {
-                let row: DbRow = self.inner.clone().into();
-                let query = InsertQuery::new(T::collection_name()).add_row(row.clone());
-                driver.insert(query).await?;
-                
-                self.snapshot = Some(row);
-            }
-            DbEntityState::Modified => {
-                if let Some(snapshot) = &self.snapshot {
-                    let current_row: DbRow = self.inner.clone().into();
-                    let mut diff = DbRow::new();
-
-                    for (k, v) in &current_row.0 {
-                        // Compare current against snapshot
-                        let is_same = snapshot.0.get(k).map(|orig| orig == v).unwrap_or(false);
-                        if !is_same {
-                            diff.insert(k.clone(), v.clone());
-                        }
-                    }
-
-                    if !diff.0.is_empty() {
-                        let query = UpdateQuery::new(T::collection_name())
-                            .filter(self.inner.key_filter()?)
-                            .set_row(diff);
-                            
-                        driver.update(query).await?;
-                    }
-                    
-                    self.snapshot = Some(current_row);
-                } else {
-                    return Err(DbError::MappingError(
-                        "Cannot update an entity that lacks a snapshot. Was it loaded from the DB?".into()
-                    ));
+        if let Some(ref original) = self.snapshot {
+            for (field, val) in &current.0 {
+                if original.get(field)!= Some(val) {
+                    updates.insert(field.clone(), val.clone());
                 }
             }
-            DbEntityState::Deleted => {
-                let query = DeleteQuery::new(T::collection_name())
-                    .filter(self.inner.key_filter()?);
-                    
-                driver.delete(query).await?;
-                self.snapshot = None;
+        }
+
+        updates
+    }
+
+    /// Persists changes to the database.
+    pub async fn save(&mut self, ctx: &DbContext) -> Result<(), DbError> {
+        match self.state {
+            DbEntityState::Added => {
+                let row: DbRow = self.entity.clone().into();
+                let q = Query::insert(T::collection_name()).insert(row.clone());
+                ctx.insert(q).await?;
+                self.snapshot = Some(row);
+                self.state = DbEntityState::Tracked;
             }
-            DbEntityState::Unchanged => {
-            },
-            DbEntityState::Detached => {
-                return Err(DbError::MappingError(
-                    "Cannot save an entity that is detached. Please add it to the context first.".into()
-                ));
+            DbEntityState::Tracked => {
+                let updates = self.dirty_fields();
+                if!updates.0.is_empty() {
+                    let q = Query::update(T::collection_name())
+                       .set_row(updates)
+                       .with_filters(self.entity.key_filter()?);
+                    ctx.update(q).await?;
+                    self.snapshot = Some(self.entity.clone().into());
+                }
             }
+            DbEntityState::Detached => return Err(DbError::MappingError("Cannot save detached entity".into())),
+            _ => {}
         }
         Ok(())
     }
+
+    /// Removes the record from the database.
+    pub async fn delete(mut self, ctx: &DbContext) -> Result<(), DbError> {
+        let q = Query::delete(T::collection_name())
+           .with_filters(self.entity.key_filter()?);
+        ctx.delete(q).await?;
+        self.state = DbEntityState::Deleted;
+        Ok(())
+    }
+
+    pub fn state(&self) -> &DbEntityState { &self.state }
+    pub fn detach(&mut self) { self.state = DbEntityState::Detached; }
 }

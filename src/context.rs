@@ -1,0 +1,56 @@
+use std::sync::Arc;
+
+use crate::{driver::driver::{Driver, Transactional}, entity::{DbEntity, DbEntityModel}, query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery}, types::{DbError, DbRow}};
+
+/// The Database Context is the central entry point for all database operations.
+/// It abstracts the underlying driver and manages the unit of work.
+pub struct DbContext {
+    driver: Arc<dyn Driver>
+}
+
+impl DbContext {
+    pub fn new(driver: Arc<dyn Driver>) -> Self {
+        Self { driver }
+    }
+
+    // --- Transaction Management ---
+    pub async fn transaction<F, Fut, T>(&self, f: F) -> Result<T, DbError>
+    where F: FnOnce(Arc<dyn Driver>) -> Fut + Send, Fut: std::future::Future<Output = Result<T, DbError>> + Send, T: Send {
+        self.driver.transaction(f).await
+    }
+
+    // --- Queries ---
+    pub async fn find(&self, query: FindQuery) -> Result<Vec<DbRow>, DbError> {
+        self.driver.find(query).await
+    }
+
+    pub async fn insert(&self, query: InsertQuery) -> Result<u64, DbError>{
+        self.driver.insert(query).await
+    }
+
+    pub async fn update(&self, query: UpdateQuery) -> Result<u64, DbError>{
+        self.driver.update(query).await
+    }
+
+    pub async fn delete(&self, query: DeleteQuery) -> Result<u64, DbError>{
+        self.driver.delete(query).await
+    }
+
+    // --- Entity Hydration (ORM Layer) ---
+    /// Executes a find query and automatically wraps each row into a tracked DbEntity.
+    /// This initializes the entity in the 'Tracked' state with a snapshot of its current data.
+    pub async fn find_entities<T: DbEntityModel>(&self, query: FindQuery) -> Result<Vec<DbEntity<T>>, DbError> {
+        // 1. Fetch raw rows from the driver
+        let rows = self.find(query).await?;
+        let mut entities = Vec::with_capacity(rows.len());
+
+        // 2. Map each row to a tracked entity
+        for row in rows {
+            // We use the raw row both to build the model and as the initial snapshot
+            let model = T::from_db_row(row.clone())?;
+            entities.push(DbEntity::from_db(model, row));
+        }
+
+        Ok(entities)
+    }
+}

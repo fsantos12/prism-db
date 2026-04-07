@@ -1,5 +1,6 @@
 mod projection;
-mod projection_definition;
+mod projection_builder;
 
+pub use projection::ProjectionDefinition;
 pub use projection::Projection;
-pub use projection_definition::ProjectionDefinition;
+pub use projection_builder::ProjectionBuilder;

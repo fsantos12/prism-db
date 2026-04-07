@@ -1,3 +1,5 @@
-mod group_definition;
+mod group_builder;
 
-pub use group_definition::GroupDefinition;
+pub type GroupDefinition = Vec<Box<String>>;
+
+pub use group_builder::GroupBuilder;
