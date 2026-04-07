@@ -1,5 +1,8 @@
 use std::fmt;
+use std::error::Error;
 
+/// Database error types with improved context and chaining support.
+#[non_exhaustive] // Prevents breaking changes when adding new variants
 #[derive(Debug)]
 pub enum DbError {
     /// Database connection failure
@@ -11,33 +14,48 @@ pub enum DbError {
     /// Record not found (common in Find operations)
     NotFound,
 
-    /// Type mismatch error (e.g., trying to read a DbValue::Int as a String)
-    TypeError(String),
+    /// Type mismatch error with structured expected/found details
+    TypeError { expected: String, found: String }, //
 
-    /// Specific driver error (encapsulates Postgres, Mongo, etc. native errors)
-    DriverError(String),
+    /// Encapsulates native errors from specific drivers (Postgres, Mongo, etc.)
+    DriverError(Box<dyn Error + Send + Sync>), //
 
-    /// Concurrency or locking issue (e.g., poisoned lock in MemoryDriver)
+    /// Concurrency or locking issue (e.g., poisoned lock)
     ConcurrencyError(String),
 
     /// Mapping error when converting between DbRow and entity models
     MappingError(String),
 }
 
-/// Implementation of Display for user-friendly error messages
 impl fmt::Display for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DbError::ConnectionError(m) => write!(f, "Connection Error: {}", m),
-            DbError::QueryError(m) => write!(f, "Query Error: {}", m),
+            DbError::ConnectionError(m) => write!(f, "Connection failure: {}", m),
+            DbError::QueryError(m) => write!(f, "Query error: {}", m),
             DbError::NotFound => write!(f, "Record not found"),
-            DbError::TypeError(m) => write!(f, "Type Error: {}", m),
-            DbError::DriverError(m) => write!(f, "Driver Error: {}", m),
-            DbError::ConcurrencyError(m) => write!(f, "Concurrency Error: {}", m),
-            DbError::MappingError(m) => write!(f, "Mapping Error: {}", m),
+            DbError::TypeError { expected, found } => {
+                write!(f, "Type mismatch: expected {}, found {}", expected, found)
+            }
+            DbError::DriverError(e) => write!(f, "Driver-specific error: {}", e),
+            DbError::ConcurrencyError(m) => write!(f, "Concurrency/Locking issue: {}", m),
+            DbError::MappingError(m) => write!(f, "Mapping failure: {}", m),
         }
     }
 }
 
-/// Standard Error trait implementation for Rust error interoperability
-impl std::error::Error for DbError {}
+impl Error for DbError {
+    /// Allows walking the error chain to find the underlying cause.
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            DbError::DriverError(e) => Some(e.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+/// Helper implementation to allow using '?' with standard IO errors.
+impl From<std::io::Error> for DbError {
+    fn from(err: std::io::Error) -> Self {
+        DbError::DriverError(Box::new(err))
+    }
+}

@@ -11,41 +11,56 @@ use crate::types::{DbError, value::DbValue};
 pub struct DbRow(pub HashMap<String, DbValue>);
 
 macro_rules! impl_type_helpers {
+    // Branch para tipos Boxed (ex: String, Json)
+    ($suffix:ident, $variant:ident, $type:ty, boxed) => {
+        paste::paste! {
+            /// Get a reference to a boxed field. Rust's deref coercion handles &Box<T> -> &T.
+            pub fn [<get_ $suffix>](&self, key: &str) -> Result<&$type, DbError> {
+                match self.get(key) {
+                    Some(DbValue::$variant(Some(v))) => Ok(v), // Deref coercion automatically works here
+                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
+                    Some(other) => Err(DbError::TypeError { 
+                        expected: stringify!($variant).to_string(), 
+                        found: format!("{:?}", other) 
+                    }),
+                    None => Err(DbError::NotFound),
+                }
+            }
+
+            /// Takes ownership and automatically unboxes the value.
+            pub fn [<take_ $suffix>](&mut self, key: &str) -> Result<$type, DbError> {
+                match self.take(key) {
+                    Some(DbValue::$variant(Some(v))) => Ok(*v), // The '*' unboxes the value
+                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
+                    Some(other) => Err(DbError::TypeError { 
+                        expected: stringify!($variant).to_string(), 
+                        found: format!("{:?}", other) 
+                    }),
+                    None => Err(DbError::NotFound),
+                }
+            }
+        }
+    };
+
+    // Branch para tipos simples na Stack (ex: i32, bool)
     ($suffix:ident, $variant:ident, $type:ty) => {
         paste::paste! {
-            // --- 1. get_x (Strict Reference) ---
-            pub fn [<get_ $suffix>](&self, key: &str) -> Result<&$type, String> {
+            pub fn [<get_ $suffix>](&self, key: &str) -> Result<&$type, DbError> {
                 match self.get(key) {
                     Some(DbValue::$variant(Some(v))) => Ok(v),
-                    Some(DbValue::$variant(None)) => Err(format!("Field '{}' is NULL", key)),
-                    Some(_) => Err(format!("Field '{}' is not a {}", key, stringify!($suffix))),
-                    None => Err(format!("Field '{}' is missing", key)),
+                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
+                    Some(other) => Err(DbError::TypeError { 
+                        expected: stringify!($variant).to_string(), 
+                        found: format!("{:?}", other) 
+                    }),
+                    None => Err(DbError::NotFound),
                 }
             }
 
-            // --- 2. get_opt_x (Optional Reference) ---
-            pub fn [<get_opt_ $suffix>](&self, key: &str) -> Option<&$type> {
-                match self.get(key) {
-                    Some(DbValue::$variant(Some(v))) => Some(v),
-                    _ => None,
-                }
-            }
-
-            // --- 3. take_x (Strict Owned) ---
-            pub fn [<take_ $suffix>](&mut self, key: &str) -> Result<$type, String> {
+            pub fn [<take_ $suffix>](&mut self, key: &str) -> Result<$type, DbError> {
                 match self.take(key) {
                     Some(DbValue::$variant(Some(v))) => Ok(v),
-                    Some(DbValue::$variant(None)) => Err(format!("Field '{}' is NULL", key)),
-                    Some(_) => Err(format!("Field '{}' is not a {}", key, stringify!($suffix))),
-                    None => Err(format!("Field '{}' is missing", key)),
-                }
-            }
-
-            // --- 4. take_opt_x (Optional Owned) ---
-            pub fn [<take_opt_ $suffix>](&mut self, key: &str) -> Option<$type> {
-                match self.take(key) {
-                    Some(DbValue::$variant(Some(v))) => Some(v),
-                    _ => None,
+                    _ => Err(DbError::MappingError(format!("Invalid or missing field '{}'", key))),
                 }
             }
         }
@@ -75,6 +90,7 @@ impl DbRow {
     }
 
     // Implement type-specific helper methods for common types
+    // Primitive types
     impl_type_helpers!(i8, I8, i8);
     impl_type_helpers!(i16, I16, i16);
     impl_type_helpers!(i32, I32, i32);
@@ -87,17 +103,21 @@ impl DbRow {
     impl_type_helpers!(u128, U128, u128);
     impl_type_helpers!(f32, F32, f32);
     impl_type_helpers!(f64, F64, f64);
-    impl_type_helpers!(decimal, Decimal, Decimal);
     impl_type_helpers!(bool, Bool, bool);
     impl_type_helpers!(char, Char, char);
-    impl_type_helpers!(string, String, String);
+
+    // Temporal types
     impl_type_helpers!(date, Date, NaiveDate);
     impl_type_helpers!(time, Time, NaiveTime);
     impl_type_helpers!(timestamp, Timestamp, NaiveDateTime);
     impl_type_helpers!(timestamptz, Timestamptz, DateTime<Utc>);
-    impl_type_helpers!(bytes, Bytes, Vec<u8>);
-    impl_type_helpers!(uuid, Uuid, Uuid);
-    impl_type_helpers!(json, Json, JsonValue);
+
+    // Large types (boxed for efficiency)
+    impl_type_helpers!(decimal, Decimal, Decimal, boxed);
+    impl_type_helpers!(string, String, String, boxed);
+    impl_type_helpers!(bytes, Bytes, Vec<u8>, boxed);
+    impl_type_helpers!(uuid, Uuid, Uuid, boxed);
+    impl_type_helpers!(json, Json, JsonValue, boxed);
 }
 
 // This allows: .collect::<DbRow>()

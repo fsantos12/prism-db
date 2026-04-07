@@ -1,78 +1,60 @@
+/// Represents the GROUP BY clause of a query.
+/// It maintains a list of fields used to aggregate the result set.
 #[derive(Debug, Clone, Default)]
-pub struct GroupDefinition(Vec<String>);
+pub struct GroupDefinition {
+    /// The collection of field names for grouping.
+    fields: Vec<String>,
+}
 
 impl GroupDefinition {
-    // Contructors
-    pub fn new(group: Vec<String>) -> Self {
-        Self(group)
+    /// Creates a new, empty GroupDefinition.
+    pub fn new() -> Self {
+        Self {
+            fields: Vec::new(),
+        }
     }
 
-    pub fn empty() -> Self {
-        Self(Vec::new())
-    }
-
-    // Vec like methods
-    pub fn push(mut self, field: String) -> Self {
-        self.0.push(field);
+    /// Adds a field to the grouping definition.
+    /// Uses Into<String> to accept both &str and String.
+    pub fn field<F: Into<String>>(mut self, field: F) -> Self {
+        self.fields.push(field.into());
         self
     }
 
-    pub fn append(mut self, other: &mut GroupDefinition) -> Self {
-        self.0.append(&mut other.0);
+    /// Adds multiple fields at once.
+    pub fn fields<F, I>(mut self, fields: I) -> Self 
+    where F: Into<String>, I: IntoIterator<Item = F>{
+        for f in fields {
+            self.fields.push(f.into());
+        }
         self
     }
 
-    pub fn pop(&mut self) -> Option<String> {
-        self.0.pop()
-    }
-
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
+    /// Checks if the definition has any fields.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.fields.is_empty()
     }
 
+    /// Returns the number of fields in the definition.
     pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    // --- Basic ---
-    pub fn field<F: Into<String>>(self, field: F) -> Self {
-        self.push(field.into())
+        self.fields.len()
     }
 }
 
-
-impl From<Vec<String>> for GroupDefinition {
-    fn from(v: Vec<String>) -> Self { Self(v) }
-}
-
-impl From<GroupDefinition> for Vec<String> {
-    fn from(d: GroupDefinition) -> Self { d.0 }
-}
-
+/// Allows drivers to iterate over the grouping fields easily.
 impl IntoIterator for GroupDefinition {
     type Item = String;
     type IntoIter = std::vec::IntoIter<Self::Item>;
-
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.fields.into_iter()
     }
 }
 
+/// Allows reference iteration for internal processing.
 impl<'a> IntoIterator for &'a GroupDefinition {
     type Item = &'a String;
     type IntoIter = std::slice::Iter<'a, String>;
-
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-impl Extend<String> for GroupDefinition {
-    fn extend<T: IntoIterator<Item = String>>(&mut self, iter: T) {
-        self.0.extend(iter);
+        self.fields.iter()
     }
 }

@@ -2,12 +2,14 @@ use async_trait::async_trait;
 
 use crate::{
     driver::driver::Driver,
-    query::{InsertQuery, UpdateQuery, DeleteQuery, filters::FilterDefinition},
+    entity::context::DbContext,
+    query::{DeleteQuery, InsertQuery, UpdateQuery, filters::FilterDefinition},
     types::{DbError, DbRow, DbValue, FromDbRow}
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DbEntityState {
+    Detached,
     Unchanged,
     Added,
     Modified,
@@ -16,10 +18,11 @@ pub enum DbEntityState {
 
 pub type DbEntityKey = Vec<(String, DbValue)>;
 
-pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + 'static {
+pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static {
     fn collection_name() -> &'static str;
     fn key(&self) -> DbEntityKey;
-    
+
+    /// Generates a unique string identifier for the tracking HashMap based on the collection name and key values. This is used internally to track entities without needing to store the entire key structure.
     fn key_hash(&self) -> String {
         let keys: Vec<String> = self.key().into_iter()
             .map(|(_, v)| format!("{:?}", v))
@@ -27,6 +30,7 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + 'static {
         format!("{}::{}", Self::collection_name(), keys.join("::"))
     }
 
+    /// Generates a database filter safely based on the key fields. Throws an error if the key is empty to prevent mass operations.
     fn key_filter(&self) -> Result<FilterDefinition, DbError> {
         let key_pairs = self.key();
         if key_pairs.is_empty() {
@@ -45,8 +49,17 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + 'static {
     }
 }
 
+/// The type-erased trait so DbContext can store different entities in the same HashMap
+#[async_trait]
+pub trait DbTrackedEntity: Send + Sync {
+    fn set_state(&mut self, state: DbEntityState);
+    async fn save_to_db(&mut self, driver: &dyn Driver) -> Result<(), DbError>;
+}
+
+/// The Smart Wrapper for your database rows
+#[derive(Clone)]
 pub struct DbEntity<T: DbEntityModel> {
-    inner: T,
+    pub inner: T,
     snapshot: Option<DbRow>,
     state: DbEntityState,
 }
@@ -57,7 +70,7 @@ impl<T: DbEntityModel + Clone> DbEntity<T> {
         Self {
             inner,
             snapshot: None,
-            state: DbEntityState::Added,
+            state: DbEntityState::Detached,
         }
     }
 
@@ -70,48 +83,27 @@ impl<T: DbEntityModel + Clone> DbEntity<T> {
         }
     }
 
-    /// Read-only access to the model. Does NOT trigger a state change.
-    pub fn inner(&self) -> &T {
-        &self.inner
-    }
-
-    /// Mutable access. Automatically flags the entity as Modified!
-    pub fn inner_mut(&mut self) -> &mut T {
-        if self.state == DbEntityState::Unchanged {
-            self.state = DbEntityState::Modified;
-        }
-        &mut self.inner
-    }
-
     /// Read the current state for the DbContext to check
     pub fn state(&self) -> DbEntityState {
         self.state
     }
 
-    /// Mark the entity for deletion (translates to DELETE)
-    pub fn mark_deleted(&mut self) {
+    /// Mark the entity for deletion
+    pub fn delete(&mut self) {
         self.state = DbEntityState::Deleted;
     }
-    
-    /// Consume the wrapper and return the raw model if tracking is no longer needed
-    pub fn into_inner(self) -> T {
-        self.inner
-    }
-}
 
-#[async_trait]
-pub trait DbTrackedEntity: Send + Sync {
-    fn get_state(&self) -> DbEntityState;
-    fn set_state(&mut self, state: DbEntityState);
-    async fn save_to_db(&mut self, driver: &dyn Driver) -> Result<(), DbError>;
+    /// Flags the entity as modified and registers it with the DbContext.
+    /// The database UPDATE will be executed when context.save_changes() is called.
+    pub fn save(&mut self, context: &DbContext) {
+        if self.state == DbEntityState::Unchanged { self.state = DbEntityState::Modified; }
+        let hash = self.inner.key_hash();
+        context.register_change(hash, Box::new(self.clone()));
+    }
 }
 
 #[async_trait]
 impl<T: DbEntityModel + Clone> DbTrackedEntity for DbEntity<T> {
-    fn get_state(&self) -> DbEntityState {
-        self.state // Implicitly copied
-    }
-
     fn set_state(&mut self, state: DbEntityState) {
         self.state = state;
     }
@@ -161,7 +153,11 @@ impl<T: DbEntityModel + Clone> DbTrackedEntity for DbEntity<T> {
                 self.snapshot = None;
             }
             DbEntityState::Unchanged => {
-                // Do nothing
+            },
+            DbEntityState::Detached => {
+                return Err(DbError::MappingError(
+                    "Cannot save an entity that is detached. Please add it to the context first.".into()
+                ));
             }
         }
         Ok(())

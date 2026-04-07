@@ -3,96 +3,88 @@ use serde_json::Value as JsonValue;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum DbValue {
-    I8(Option<i8>), I16(Option<i16>), I32(Option<i32>), I64(Option<i64>), I128(Option<i128>),
-    U8(Option<u8>), U16(Option<u16>), U32(Option<u32>), U64(Option<u64>), U128(Option<u128>),
-    F32(Option<f32>), F64(Option<f64>), Decimal(Option<Decimal>),
-    Bool(Option<bool>),
-    Char(Option<char>), String(Option<String>),
-    Date(Option<NaiveDate>), Time(Option<NaiveTime>), Timestamp(Option<NaiveDateTime>), Timestamptz(Option<DateTime<Utc>>),
-    Bytes(Option<Vec<u8>>),
-    Uuid(Option<Uuid>),
-    Json(Option<JsonValue>)
+/// Helper macro to generate the type definition inside the variant.
+/// It wraps the type in Box if the 'boxed' keyword is provided.
+macro_rules! wrap_type {
+    ($type:ty, boxed) => { Box<$type> };
+    ($type:ty,) => { $type };
 }
 
-impl DbValue {
-    pub fn is_null(&self) -> bool {
-        match self {
-            DbValue::I8(v) => v.is_none(),
-            DbValue::I16(v) => v.is_none(),
-            DbValue::I32(v) => v.is_none(),
-            DbValue::I64(v) => v.is_none(),
-            DbValue::I128(v) => v.is_none(),
-            DbValue::U8(v) => v.is_none(),
-            DbValue::U16(v) => v.is_none(),
-            DbValue::U32(v) => v.is_none(),
-            DbValue::U64(v) => v.is_none(),
-            DbValue::U128(v) => v.is_none(),
-            DbValue::F32(v) => v.is_none(),
-            DbValue::F64(v) => v.is_none(),
-            DbValue::Decimal(v) => v.is_none(),
-            DbValue::Bool(v) => v.is_none(),
-            DbValue::Char(v) => v.is_none(),
-            DbValue::String(v) => v.is_none(),
-            DbValue::Date(v) => v.is_none(),
-            DbValue::Time(v) => v.is_none(),
-            DbValue::Timestamp(v) => v.is_none(),
-            DbValue::Timestamptz(v) => v.is_none(),
-            DbValue::Bytes(v) => v.is_none(),
-            DbValue::Uuid(v) => v.is_none(),
-            DbValue::Json(v) => v.is_none()
-        }
-    }
+/// Helper macro to wrap the value during conversion.
+macro_rules! wrap_val {
+    ($val:expr, boxed) => { Box::new($val) };
+    ($val:expr,) => { $val };
 }
 
-macro_rules! impl_from_value {
-    ($variant:ident, $type:ty) => {
-        impl From<$type> for DbValue {
-            fn from(val: $type) -> Self {
-                DbValue::$variant(Some(val))
+macro_rules! define_db_value {
+    ($( $variant:ident($type:ty $(, $boxed:ident)?) ),* $(,)?) => {
+        #[derive(Debug, Clone, PartialEq)]
+        pub enum DbValue {
+            $(
+                $variant(Option<wrap_type!($type, $($boxed)?)>),
+            )*
+        }
+
+        impl DbValue {
+            /// Returns true if the inner value is None, regardless of the variant.
+            pub fn is_null(&self) -> bool {
+                match self {
+                    $( DbValue::$variant(v) => v.is_none(), )*
+                }
             }
         }
-        impl From<Option<$type>> for DbValue {
-            fn from(val: Option<$type>) -> Self {
-                DbValue::$variant(val)
+
+        $(
+            // implementation of From<T> for DbValue
+            impl From<$type> for DbValue {
+                fn from(val: $type) -> Self {
+                    DbValue::$variant(Some(wrap_val!(val, $($boxed)?)))
+                }
             }
-        }
+
+            // implementation of From<Option<T>> for DbValue
+            impl From<Option<$type>> for DbValue {
+                fn from(val: Option<$type>) -> Self {
+                    DbValue::$variant(val.map(|v| wrap_val!(v, $($boxed)?)))
+                }
+            }
+        )*
     };
 }
 
-impl_from_value!(I8, i8);
-impl_from_value!(I16, i16);
-impl_from_value!(I32, i32);
-impl_from_value!(I64, i64);
-impl_from_value!(I128, i128);
-impl_from_value!(U8, u8);
-impl_from_value!(U16, u16);
-impl_from_value!(U32, u32);
-impl_from_value!(U64, u64);
-impl_from_value!(U128, u128);
-impl_from_value!(F32, f32);
-impl_from_value!(F64, f64);
-impl_from_value!(Decimal, Decimal);
-impl_from_value!(Bool, bool);
-impl_from_value!(Char, char);
-impl_from_value!(String, String);
-impl_from_value!(Date, NaiveDate);
-impl_from_value!(Time, NaiveTime);
-impl_from_value!(Timestamp, NaiveDateTime);
-impl_from_value!(Timestamptz, DateTime<Utc>);
-impl_from_value!(Bytes, Vec<u8>);
-impl_from_value!(Uuid, Uuid);
-impl_from_value!(Json, JsonValue);
+// --- FULL IMPLEMENTATION ---
+define_db_value! {
+    // Primitive types
+    I8(i8), I16(i16), I32(i32), I64(i64), I128(i128),
+    U8(u8), U16(u16), U32(u32), U64(u64), U128(u128),
+    F32(f32), F64(f64), 
+    Bool(bool),
+    Char(char),
 
+    // Temporal types
+    Date(NaiveDate), 
+    Time(NaiveTime), 
+    Timestamp(NaiveDateTime), 
+    Timestamptz(DateTime<Utc>),
+
+    // Large types marked as 'boxed' for memory efficiency [1, 2]
+    Decimal(Decimal, boxed),
+    String(String, boxed),
+    Bytes(Vec<u8>, boxed),
+    Uuid(Uuid, boxed),
+    Json(JsonValue, boxed),
+}
+
+/// Manual implementations for string slices (&str) to improve ergonomics.
+/// We don't include this in the macro to avoid conflicting with the String variant.
 impl From<&str> for DbValue {
     fn from(val: &str) -> Self {
-        DbValue::String(Some(val.to_string()))
+        DbValue::String(Some(Box::new(val.to_string())))
     }
 }
 
 impl From<Option<&str>> for DbValue {
     fn from(val: Option<&str>) -> Self {
-        DbValue::String(val.map(|s| s.to_string()))
+        DbValue::String(val.map(|s| Box::new(s.to_string())))
     }
 }
