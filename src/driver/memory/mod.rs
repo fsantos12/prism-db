@@ -220,6 +220,7 @@ impl Driver for MemoryDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     fn create_test_row(name: &str, age: i32) -> DbRow {
         let mut row = DbRow::new();
@@ -230,6 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_row() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let mut row = DbRow::new();
         row.insert("id", 1i32);
@@ -240,10 +242,13 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
+        let elapsed = start.elapsed();
+        println!("✅ test_insert_single_row: {:?} | 📝 1 row inserted | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_insert_multiple_rows() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -256,10 +261,13 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 3);
+        let elapsed = start.elapsed();
+        println!("✅ test_insert_multiple_rows: {:?} | 📝 3 rows inserted | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_all_rows() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -272,21 +280,28 @@ mod tests {
         let result = driver.find(query).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let count = result.as_ref().unwrap().len();
+        assert_eq!(count, 2);
+        let elapsed = start.elapsed();
+        println!("🔍 test_find_all_rows: {:?} | 📊 Found {} rows | ⚡ {:.3}ms", elapsed, count, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_nonexistent_collection() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let query = FindQuery::new("nonexistent");
         let result = driver.find(query).await;
 
         assert!(result.is_err());
         assert!(matches!(result, Err(DbError::NotFound)));
+        let elapsed = start.elapsed();
+        println!("❌ test_find_nonexistent_collection: {:?} | 🚫 Error caught as expected | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_with_eq_filter() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -301,11 +316,15 @@ mod tests {
         
         let result = driver.find(query).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let count = result.unwrap().len();
+        assert_eq!(count, 2);
+        let elapsed = start.elapsed();
+        println!("🔍 test_find_with_eq_filter: {:?} | 🎯 Filtered {} rows (age=30) | ⚡ {:.3}ms", elapsed, count, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_with_limit() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -319,11 +338,15 @@ mod tests {
         let result = driver.find(query).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let count = result.unwrap().len();
+        assert_eq!(count, 2);
+        let elapsed = start.elapsed();
+        println!("📄 test_find_with_limit: {:?} | 📋 Returned {} rows (limit=2) | ⚡ {:.3}ms", elapsed, count, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_with_offset() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -337,11 +360,15 @@ mod tests {
         let result = driver.find(query).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let count = result.unwrap().len();
+        assert_eq!(count, 2);
+        let elapsed = start.elapsed();
+        println!("⏭️  test_find_with_offset: {:?} | 📍 Skipped 1 row, returned {} | ⚡ {:.3}ms", elapsed, count, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_find_with_limit_and_offset() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -356,11 +383,15 @@ mod tests {
         let result = driver.find(query).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        let count = result.unwrap().len();
+        assert_eq!(count, 2);
+        let elapsed = start.elapsed();
+        println!("📖 test_find_with_limit_and_offset: {:?} | 📑 Pagination (offset=1, limit=2) returned {} | ⚡ {:.3}ms", elapsed, count, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_update_single_row() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         driver.insert(InsertQuery::new("users").values(vec![create_test_row("Alice", 30)])).await.unwrap();
 
@@ -374,10 +405,13 @@ mod tests {
         let result = driver.update(query).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
+        let elapsed = start.elapsed();
+        println!("🔄 test_update_single_row: {:?} | ⏱️ 1 row updated (age=31) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_update_multiple_rows() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -397,10 +431,13 @@ mod tests {
         let result = driver.update(query).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 2);
+        let elapsed = start.elapsed();
+        println!("🔄 test_update_multiple_rows: {:?} | ⏱️ Bulk update: 2 rows (age=31) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_update_nonexistent_collection() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let mut updates = DbRow::new();
         updates.insert("age", 31i32);
@@ -411,10 +448,13 @@ mod tests {
 
         let result = driver.update(query).await;
         assert!(result.is_err());
+        let elapsed = start.elapsed();
+        println!("❌ test_update_nonexistent_collection: {:?} | 🚫 Error caught | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_delete_single_row() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         driver.insert(InsertQuery::new("users").values(vec![create_test_row("Alice", 30)])).await.unwrap();
 
@@ -429,10 +469,13 @@ mod tests {
         let find_result = driver.find(FindQuery::new("users")).await;
         assert!(find_result.is_ok());
         assert_eq!(find_result.unwrap().len(), 0);
+        let elapsed = start.elapsed();
+        println!("❌ test_delete_single_row: {:?} | 🗑️ 1 row deleted (name=Alice) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_delete_multiple_rows() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -452,19 +495,25 @@ mod tests {
         // Verify remaining rows
         let find_result = driver.find(FindQuery::new("users")).await;
         assert_eq!(find_result.unwrap().len(), 1);
+        let elapsed = start.elapsed();
+        println!("❌ test_delete_multiple_rows: {:?} | 🗑️ Bulk delete: 2 rows (age=30) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_delete_nonexistent_collection() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let query = DeleteQuery::new("nonexistent").with_filters(vec![]);
         let result = driver.delete(query).await;
 
         assert!(result.is_err());
+        let elapsed = start.elapsed();
+        println!("❌ test_delete_nonexistent_collection: {:?} | 🚫 Error caught | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_is_null_filter() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let mut row1 = DbRow::new();
         row1.insert("name", "Alice");
@@ -481,10 +530,13 @@ mod tests {
 
         let result = driver.find(query).await.unwrap();
         assert_eq!(result.len(), 1);
+        let elapsed = start.elapsed();
+        println!("🔍 test_is_null_filter: {:?} | 🎯 Found 1 row (email IS NULL) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_in_filter() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 30),
@@ -499,10 +551,13 @@ mod tests {
 
         let result = driver.find(query).await.unwrap();
         assert_eq!(result.len(), 2);
+        let elapsed = start.elapsed();
+        println!("🔍 test_in_filter: {:?} | 🎯 Found 2 rows (age IN [25, 35]) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_between_filter() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let rows = vec![
             create_test_row("Alice", 20),
@@ -517,10 +572,13 @@ mod tests {
 
         let result = driver.find(query).await.unwrap();
         assert_eq!(result.len(), 1); // Only Bob (30)
+        let elapsed = start.elapsed();
+        println!("🔍 test_between_filter: {:?} | 🎯 Found 1 row (age BETWEEN 25-35) | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[tokio::test]
     async fn test_contains_filter() {
+        let start = Instant::now();
         let driver = MemoryDriver::new();
         let mut row1 = DbRow::new();
         row1.insert("name", "Alice Johnson");
@@ -535,5 +593,7 @@ mod tests {
 
         let result = driver.find(query).await.unwrap();
         assert_eq!(result.len(), 1);
+        let elapsed = start.elapsed();
+        println!("🔍 test_contains_filter: {:?} | 🎯 Found 1 row (name CONTAINS 'Johnson') | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 }

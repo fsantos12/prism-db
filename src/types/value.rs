@@ -98,23 +98,31 @@ impl From<Option<&str>> for DbValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     #[test]
     fn test_is_null_with_some_values() {
+        let start = Instant::now();
         assert!(!DbValue::I32(Some(42)).is_null());
         assert!(!DbValue::String(Some(Box::new("hello".to_string()))).is_null());
         assert!(!DbValue::Bool(Some(true)).is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_is_null_with_some_values: {:?} | ✔️  Some values not null | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_is_null_with_none_values() {
+        let start = Instant::now();
         assert!(DbValue::I32(None).is_null());
         assert!(DbValue::String(None).is_null());
         assert!(DbValue::Bool(None).is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_is_null_with_none_values: {:?} | 🌀 None values are null | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_conversion_from_primitive_types() {
+        let start = Instant::now();
         let val: DbValue = 42i32.into();
         assert_eq!(val, DbValue::I32(Some(42)));
 
@@ -123,64 +131,87 @@ mod tests {
 
         let val: DbValue = 3.14f64.into();
         assert_eq!(val, DbValue::F64(Some(3.14)));
+        let elapsed = start.elapsed();
+        println!("✅ test_conversion_from_primitive_types: {:?} | 🔐 3 conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_conversion_from_string() {
+        let start = Instant::now();
         let val: DbValue = "hello".into();
         assert_eq!(val, DbValue::String(Some(Box::new("hello".to_string()))));
 
         let val: DbValue = String::from("world").into();
         assert_eq!(val, DbValue::String(Some(Box::new("world".to_string()))));
+        let elapsed = start.elapsed();
+        println!("✅ test_conversion_from_string: {:?} | 👤 String conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_conversion_from_option() {
+        let start = Instant::now();
         let val: DbValue = Some(42i32).into();
         assert_eq!(val, DbValue::I32(Some(42)));
 
         let val: DbValue = None::<i32>.into();
         assert_eq!(val, DbValue::I32(None));
+        let elapsed = start.elapsed();
+        println!("✅ test_conversion_from_option: {:?} | 👨 Option conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_conversion_from_option_string() {
+        let start = Instant::now();
         let val: DbValue = Some("hello").into();
         assert_eq!(val, DbValue::String(Some(Box::new("hello".to_string()))));
 
         let val: DbValue = None::<&str>.into();
         assert_eq!(val, DbValue::String(None));
+        let elapsed = start.elapsed();
+        println!("✅ test_conversion_from_option_string: {:?} | 👨 Option<String> | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_uuid_conversion() {
+        let start = Instant::now();
         let uuid = Uuid::nil();
         let val: DbValue = uuid.into();
         assert!(!val.is_null());
         
         let val: DbValue = Some(uuid).into();
         assert!(!val.is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_uuid_conversion: {:?} | 👩 UUID conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_decimal_conversion() {
+        let start = Instant::now();
         let dec = Decimal::from(123);
         let val: DbValue = dec.into();
         assert!(!val.is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_decimal_conversion: {:?} | 📊 Decimal conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_datetime_conversion() {
+        let start = Instant::now();
         let now = Utc::now();
         let val: DbValue = now.into();
         assert!(!val.is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_datetime_conversion: {:?} | 📅 DateTime conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_json_conversion() {
+        let start = Instant::now();
         let json = serde_json::json!({"key": "value"});
         let val: DbValue = json.into();
         assert!(!val.is_null());
+        let elapsed = start.elapsed();
+        println!("✅ test_json_conversion: {:?} | 🌚 JSON conversions | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]

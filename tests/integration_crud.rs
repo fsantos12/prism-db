@@ -5,6 +5,7 @@ use simple_db::{
     DbContext,
 };
 use std::sync::Arc;
+use std::time::Instant;
 
 // ==========================================
 // Insert Tests
@@ -12,6 +13,7 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn insert_single_record_returns_count_of_one() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -24,10 +26,13 @@ async fn insert_single_record_returns_count_of_one() {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
+    let elapsed = start.elapsed();
+    println!("✅ INSERT: 1 record inserted | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn insert_multiple_records_returns_correct_count() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -43,6 +48,8 @@ async fn insert_multiple_records_returns_correct_count() {
     let result = ctx.insert(query).await;
 
     assert_eq!(result.unwrap(), 5);
+    let elapsed = start.elapsed();
+    println!("✅ INSERT: 5 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -51,6 +58,7 @@ async fn insert_multiple_records_returns_correct_count() {
 
 #[tokio::test]
 async fn find_returns_empty_list_when_collection_does_not_exist() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -58,10 +66,13 @@ async fn find_returns_empty_list_when_collection_does_not_exist() {
     let result = ctx.find(query).await;
 
     assert!(result.is_err());
+    let elapsed = start.elapsed();
+    println!("🔍 FIND: Collection not found (expected) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_all_returns_all_inserted_records() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -83,10 +94,13 @@ async fn find_all_returns_all_inserted_records() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 3);
+    let elapsed = start.elapsed();
+    println!("🔍 FIND: 3 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_with_less_than_filter_returns_matching_records() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -108,10 +122,13 @@ async fn find_with_less_than_filter_returns_matching_records() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
+    let elapsed = start.elapsed();
+    println!("🔍 FIND: 2 records (price < 100) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_with_greater_than_filter_returns_matching_records() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -133,10 +150,13 @@ async fn find_with_greater_than_filter_returns_matching_records() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
+    let elapsed = start.elapsed();
+    println!("🔍 FIND: 2 records (age > 30) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_with_equals_filter_returns_exact_match() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -158,10 +178,13 @@ async fn find_with_equals_filter_returns_exact_match() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
+    let elapsed = start.elapsed();
+    println!("🔍 FIND: 2 records (status=active) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_ordered_by_field_ascending_returns_sorted_results() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -187,10 +210,13 @@ async fn find_ordered_by_field_ascending_returns_sorted_results() {
     assert_eq!(*result[0].get("id").unwrap(), 2i32.into());
     // Last result should be Charlie (id=1)
     assert_eq!(*result[2].get("id").unwrap(), 1i32.into());
+    let elapsed = start.elapsed();
+    println!("🔍 SORT: 3 records ascending | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_ordered_by_field_descending_returns_reverse_sorted_results() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -214,10 +240,13 @@ async fn find_ordered_by_field_descending_returns_reverse_sorted_results() {
     assert_eq!(result.len(), 3);
     // First should be highest price (100.0, id=2)
     assert_eq!(*result[0].get("id").unwrap(), 2i32.into());
+    let elapsed = start.elapsed();
+    println!("🔍 SORT: 3 records descending | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_with_limit_returns_only_limited_records() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -238,10 +267,13 @@ async fn find_with_limit_returns_only_limited_records() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
+    let elapsed = start.elapsed();
+    println!("🔍 LIMIT: 2/5 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn find_with_limit_and_offset_returns_paginated_results() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -264,6 +296,8 @@ async fn find_with_limit_and_offset_returns_paginated_results() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 5);
+    let elapsed = start.elapsed();
+    println!("🔍 PAGINATION: Page 2/2 | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -272,6 +306,7 @@ async fn find_with_limit_and_offset_returns_paginated_results() {
 
 #[tokio::test]
 async fn update_single_field_changes_the_value() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -297,10 +332,13 @@ async fn update_single_field_changes_the_value() {
         .filter(|fb| fb.eq("id", 1i32));
     let result = ctx.find(find_query).await.unwrap();
     assert_eq!(result.len(), 1);
+    let elapsed = start.elapsed();
+    println!("🔄 UPDATE: 1 record (age=26) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn update_multiple_records_matching_filter() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -323,6 +361,8 @@ async fn update_multiple_records_matching_filter() {
     let count = ctx.update(update_query).await.unwrap();
 
     assert_eq!(count, 3);
+    let elapsed = start.elapsed();
+    println!("🔄 UPDATE: 3 records (bulk) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -331,6 +371,7 @@ async fn update_multiple_records_matching_filter() {
 
 #[tokio::test]
 async fn delete_record_removes_matching_row() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -353,10 +394,13 @@ async fn delete_record_removes_matching_row() {
     let find_query = Query::find("users");
     let result = ctx.find(find_query).await.unwrap();
     assert_eq!(result.len(), 0); // All records should be deleted
+    let elapsed = start.elapsed();
+    println!("❌ DELETE: 1 record | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn delete_multiple_records_matching_condition() {
+    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -382,4 +426,6 @@ async fn delete_multiple_records_matching_condition() {
     let find_query = Query::find("users");
     let result = ctx.find(find_query).await.unwrap();
     assert_eq!(result.len(), 3);
+    let elapsed = start.elapsed();
+    println!("❌ DELETE: 2 records (bulk) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
