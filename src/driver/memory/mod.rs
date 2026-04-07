@@ -1,3 +1,10 @@
+//! In-memory database driver implementation.
+//!
+//! `MemoryDriver` provides a thread-safe, in-memory store suitable for testing,
+//! prototyping, and unit tests. It implements the full Driver interface including
+//! filtering, sorting, pagination, and transaction support using RwLock-based
+//! concurrency control.
+
 mod comparison;
 
 use std::{cmp::Ordering, collections::HashMap, sync::{Arc, RwLock}};

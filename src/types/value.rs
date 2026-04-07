@@ -1,3 +1,9 @@
+//! Type-safe database values with support for SQL and specialized types.
+//!
+//! `DbValue` is an enum wrapper supporting primitives (integers, floats, booleans),
+//! temporal types (Date, Time, Timestamp), and specialized types (UUID, Decimal,
+//! JSON). String values and large types are boxed for memory efficiency.
+
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde_json::Value as JsonValue;
 use rust_decimal::Decimal;

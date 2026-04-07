@@ -1,3 +1,9 @@
+//! Fluent builder API for field selection and aggregation functions.
+//!
+//! `ProjectionBuilder` enables selecting specific fields and applying aggregate
+//! functions (count, sum, avg, min, max) to shape query results. Projections
+//! can include field aliases for renamed output columns.
+
 use crate::query::projections::{Projection, ProjectionDefinition};
 
 #[derive(Debug, Clone, Default)]

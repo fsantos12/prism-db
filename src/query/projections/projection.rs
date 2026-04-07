@@ -1,3 +1,8 @@
+//! Field selection and aggregation definitions for result shaping.
+//!
+//! The `Projection` enum supports selecting individual fields, applying aggregate
+//! functions (Count, Sum, Avg, Min, Max), and aliasing results for custom output.
+
 pub type ProjectionDefinition = Vec<Projection>;
 
 #[derive(Debug, Clone)]

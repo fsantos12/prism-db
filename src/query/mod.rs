@@ -1,3 +1,9 @@
+//! Query builders for database operations.
+//!
+//! This module provides builder APIs for constructing type-safe queries (Find, Insert,
+//! Update, Delete). Each query type supports fluent composition with specialized
+//! builders for filters, projections, sorts, and groups.
+
 use crate::{query::{
     filters::{FilterBuilder, FilterDefinition}, groups::{GroupBuilder, GroupDefinition}, projections::{ProjectionBuilder, ProjectionDefinition}, sorts::{SortBuilder, SortDefinition}
 }, types::{DbRow, DbValue}};
@@ -10,6 +16,7 @@ pub mod groups;
 // ==========================================
 // Find
 // ==========================================
+/// Retrieve and filter records from a collection with optional projections, sorting, grouping, and pagination.
 #[derive(Debug, Clone)]
 pub struct FindQuery {
     pub collection: String,
@@ -85,6 +92,7 @@ impl FindQuery {
 // ==========================================
 // Insert
 // ==========================================
+/// Add one or more new records to a collection.
 #[derive(Debug, Clone)]
 pub struct InsertQuery {
     pub collection: String,
@@ -127,6 +135,7 @@ impl InsertQuery {
 // ==========================================
 // Update
 // ==========================================
+/// Modify records in a collection matching specified filter conditions.
 #[derive(Debug, Clone)]
 pub struct UpdateQuery {
     pub collection: String,
@@ -167,8 +176,9 @@ impl UpdateQuery {
 }
 
 // ==========================================
-// DELETE
+// Delete
 // ==========================================
+/// Remove records from a collection matching specified filter conditions.
 #[derive(Debug, Clone)]
 pub struct DeleteQuery {
     pub collection: String,
@@ -198,8 +208,9 @@ impl DeleteQuery {
 }
 
 // ==========================================
-// Query
+// Query Builder Entry Point
 // ==========================================
+/// Entry point for constructing queries using the builder pattern.
 pub struct Query;
 
 impl Query {

@@ -1,3 +1,8 @@
+//! Database error types and context information.
+//!
+//! Comprehensive error enum covering connection, query, type, concurrency, and
+//! mapping failures with detailed context for debugging and recovery.
+
 use std::fmt;
 use std::error::Error;
 

@@ -1,3 +1,8 @@
+//! Database row representation and type-safe accessors.
+//!
+//! `DbRow` provides a HashMap-backed representation of database rows with
+//! helper methods for type-safe field access and conversion to entity models.
+
 use std::collections::HashMap;
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};

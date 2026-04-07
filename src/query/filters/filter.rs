@@ -1,7 +1,16 @@
+//! Filter definitions and evaluation nodes for query conditions.
+//!
+//! This module defines the `Filter` enum which represents the AST for query conditions.
+//! Filters can be combined using logical operators (And, Or, Not) to build complex query predicates.
+
 use crate::types::DbValue;
 
 pub type FilterDefinition = Vec<Filter>;
 
+/// Filter AST node representing a single condition or logical operation.
+///
+/// Filters are combined into a `FilterDefinition` vector where they are evaluated
+/// with implicit AND logic. Use `And`, `Or`, and `Not` for explicit logical grouping.
 #[derive(Debug, Clone)]
 pub enum Filter {
     // --- Null Checks ---

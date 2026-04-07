@@ -1,3 +1,10 @@
+//! Fluent builder API for constructing filter conditions.
+//!
+//! `FilterBuilder` provides a fluent interface to define query conditions. Conditions
+//! are organized into logical groups: null checks, comparisons, pattern matching,
+//! range checks, set membership, and logical operators. Multiple conditions are
+//! combined with implicit AND logic.
+
 use crate::{query::filters::{Filter, FilterDefinition}, types::DbValue};
 
 pub struct FilterBuilder {

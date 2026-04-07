@@ -1,3 +1,8 @@
+//! Fluent builder API for GROUP BY clause construction.
+//!
+//! `GroupBuilder` enables specifying one or more fields for grouping aggregate
+//! queries and controlling result set partitioning.
+
 use crate::query::groups::GroupDefinition;
 
 /// A fluent builder for constructing a GROUP BY clause.

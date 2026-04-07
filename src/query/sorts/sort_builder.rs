@@ -1,3 +1,8 @@
+//! Fluent builder API for sort ordering and null handling strategies.
+//!
+//! `SortBuilder` defines result ordering with support for ascending/descending
+//! directions and null value placement control. Also supports random ordering.
+
 use crate::query::sorts::sort::{Sort, SortDefinition};
 
 #[derive(Debug, Clone, Default)]

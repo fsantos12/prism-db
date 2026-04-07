@@ -1,3 +1,9 @@
+//! Type-safe comparison and equality functions for database values.
+//!
+//! Provides strict comparison and equality checking for `DbValue` types,
+//! ensuring only compatible types are compared and returning `None` for
+//! incompatible type combinations.
+
 use std::cmp::Ordering;
 
 use crate::types::DbValue;

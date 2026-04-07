@@ -1,4 +1,14 @@
+//! Entity model definitions and change tracking.
+//!
+//! Provides the ORM layer with entity state management (Added, Tracked, Deleted, Detached),
+//! change detection, and persistence operations for converting between Rust types and
+//! database rows.
+
 use crate::{DbContext, query::{Query, filters::{FilterBuilder, FilterDefinition}}, types::{DbError, DbRow, DbValue, FromDbRow}};
+
+// ==========================================
+// Entity State Management
+// ==========================================
 
 pub enum DbEntityState {
     /// Entity is new and not yet in the DB.
@@ -12,6 +22,10 @@ pub enum DbEntityState {
 }
 
 pub type DbEntityKey = Vec<(String, DbValue)>;
+
+// ==========================================
+// Entity Model Contract
+// ==========================================
 
 pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static {
     fn collection_name() -> &'static str;
@@ -31,6 +45,10 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static
         for (field, value) in key_pairs {
             filter = filter.eq(field, value);
         }
+
+// ==========================================
+// Tracked Entity & Persistence
+// ==========================================
 
         Ok(filter.build())
     }

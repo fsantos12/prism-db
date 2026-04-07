@@ -1,9 +1,13 @@
+//! Database context serving as the central entry point for all database operations.
+//!
+//! `DbContext` abstracts the underlying driver implementation and provides a clean
+//! API for queries (Find, Insert, Update, Delete), transactions, and entity hydration.
+//! It manages the unit of work pattern and change tracking for ORM operations.
+
 use std::sync::Arc;
 
 use crate::{driver::driver::{Driver, Transactional}, entity::{DbEntity, DbEntityModel}, query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery}, types::{DbError, DbRow}};
 
-/// The Database Context is the central entry point for all database operations.
-/// It abstracts the underlying driver and manages the unit of work.
 pub struct DbContext {
     driver: Arc<dyn Driver>
 }
