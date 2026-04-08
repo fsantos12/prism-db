@@ -13,6 +13,10 @@ criterion_group!(
     benches,
     bench_find_entities_readonly_100k,
     bench_find_entities_tracked_100k,
+    bench_find_rows_eq_i32_100k,
+    bench_find_rows_gte_i32_100k,
+    bench_find_rows_contains_string_100k,
+    bench_find_rows_regex_string_100k,
     bench_dirty_field_detection_1k,
     bench_query_builder_10k
 );
@@ -138,6 +142,76 @@ fn bench_dirty_field_detection_1k(c: &mut Criterion) {
             }
 
             black_box(entities.len());
+        })
+    });
+}
+
+fn bench_find_rows_eq_i32_100k(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let driver = Arc::new(MemoryDriver::new());
+    let ctx = DbContext::new(driver);
+
+    rt.block_on(seed_users(&ctx, 100_000)).unwrap();
+
+    let query = Query::find("users").filter(|f| f.eq("id", 99_999i32));
+
+    c.bench_function("find_rows_eq_i32_100k", |b| {
+        b.to_async(&rt).iter(|| async {
+            let rows = ctx.find(black_box(query.clone())).await.unwrap();
+            black_box(rows.len());
+        })
+    });
+}
+
+fn bench_find_rows_gte_i32_100k(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let driver = Arc::new(MemoryDriver::new());
+    let ctx = DbContext::new(driver);
+
+    rt.block_on(seed_users(&ctx, 100_000)).unwrap();
+
+    let query = Query::find("users").filter(|f| f.gte("id", 50_000i32));
+
+    c.bench_function("find_rows_gte_i32_100k", |b| {
+        b.to_async(&rt).iter(|| async {
+            let rows = ctx.find(black_box(query.clone())).await.unwrap();
+            black_box(rows.len());
+        })
+    });
+}
+
+fn bench_find_rows_contains_string_100k(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let driver = Arc::new(MemoryDriver::new());
+    let ctx = DbContext::new(driver);
+
+    rt.block_on(seed_users(&ctx, 100_000)).unwrap();
+
+    let query = Query::find("users").filter(|f| f.contains("email", "@example.com"));
+
+    c.bench_function("find_rows_contains_string_100k", |b| {
+        b.to_async(&rt).iter(|| async {
+            let rows = ctx.find(black_box(query.clone())).await.unwrap();
+            black_box(rows.len());
+        })
+    });
+}
+
+fn bench_find_rows_regex_string_100k(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let driver = Arc::new(MemoryDriver::new());
+    let ctx = DbContext::new(driver);
+
+    rt.block_on(seed_users(&ctx, 100_000)).unwrap();
+
+    // Note: regex compilation is inside filter evaluation (current design),
+    // so this benchmarks both compilation + match cost.
+    let query = Query::find("users").filter(|f| f.regex("email", r"^user\\d+@example\\.com$"));
+
+    c.bench_function("find_rows_regex_string_100k", |b| {
+        b.to_async(&rt).iter(|| async {
+            let rows = ctx.find(black_box(query.clone())).await.unwrap();
+            black_box(rows.len());
         })
     });
 }
