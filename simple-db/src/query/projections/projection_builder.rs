@@ -13,7 +13,7 @@ pub struct ProjectionBuilder {
 
 impl ProjectionBuilder {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self { items: ProjectionDefinition::new() }
     }
 
     /// Internal helper to push a projection and return Self for chaining.

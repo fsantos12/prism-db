@@ -32,10 +32,10 @@ impl FindQuery {
     pub fn new<S: Into<String>>(collection: S) -> Self {
         Self {
             collection: collection.into(),
-            projections: Vec::new(),
-            filters: Vec::new(),
-            sorts: Vec::new(),
-            groups: Vec::new(),
+            projections: ProjectionDefinition::new(),
+            filters: FilterDefinition::new(),
+            sorts: SortDefinition::new(),
+            groups: GroupDefinition::new(),
             limit: None,
             offset: None,
         }
@@ -148,7 +148,7 @@ impl UpdateQuery {
         Self {
             collection: collection.into(),
             updates: DbRow::new(),
-            filters: Vec::new(),
+            filters: FilterDefinition::new(),
         }
     }
 
@@ -189,7 +189,7 @@ impl DeleteQuery {
     pub fn new(collection: impl Into<String>) -> Self {
         Self {
             collection: collection.into(),
-            filters: Vec::new(),
+            filters: FilterDefinition::new(),
         }
     }
 

@@ -3,8 +3,12 @@
 //! Provides `GroupBuilder` for fluent construction of GROUP BY clauses used in
 //! aggregate queries to partition results by one or more fields.
 
+use smallvec::SmallVec;
+
 mod group_builder;
 
-pub type GroupDefinition = Vec<Box<String>>;
+/// Type alias for a list of field names to group by.
+/// Stack-allocated for up to 4 group fields; larger queries spill to heap automatically.
+pub type GroupDefinition = SmallVec<[Box<String>; 4]>;
 
 pub use group_builder::GroupBuilder;

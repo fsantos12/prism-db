@@ -6,52 +6,74 @@
 
 use std::cmp::Ordering;
 
-use crate::types::DbValue;
+use crate::types::{DbValue, DbValueRef};
 
 pub fn strict_partial_cmp(left: &DbValue, right: &DbValue) -> Option<Ordering> {
-    macro_rules! compare_inner {
-        ($($variant:ident),+ $(,)?) => {
-            match (left, right) {
-                $(
-                    // 'a' and 'b' are &Option<T>. Rust knows how to compare Options!
-                    (DbValue::$variant(a), DbValue::$variant(b)) => a.partial_cmp(b),
-                )+
-                // If they are different variants, or uncomparable types (like Json), return None
-                _ => None,
-            }
-        };
-    }
+    match (DbValueRef::from(left), DbValueRef::from(right)) {
+        (DbValueRef::Null, DbValueRef::Null) => Some(Ordering::Equal),
 
-    compare_inner!(
-        I8, I16, I32, I64, I128,
-        U8, U16, U32, U64, U128,
-        F32, F64, Decimal,
-        Bool, Char, String,
-        Date, Time, Timestamp, Timestamptz
-    )
+        (DbValueRef::I8(a), DbValueRef::I8(b)) => a.partial_cmp(&b),
+        (DbValueRef::I16(a), DbValueRef::I16(b)) => a.partial_cmp(&b),
+        (DbValueRef::I32(a), DbValueRef::I32(b)) => a.partial_cmp(&b),
+        (DbValueRef::I64(a), DbValueRef::I64(b)) => a.partial_cmp(&b),
+        (DbValueRef::I128(a), DbValueRef::I128(b)) => a.partial_cmp(&b),
+
+        (DbValueRef::U8(a), DbValueRef::U8(b)) => a.partial_cmp(&b),
+        (DbValueRef::U16(a), DbValueRef::U16(b)) => a.partial_cmp(&b),
+        (DbValueRef::U32(a), DbValueRef::U32(b)) => a.partial_cmp(&b),
+        (DbValueRef::U64(a), DbValueRef::U64(b)) => a.partial_cmp(&b),
+        (DbValueRef::U128(a), DbValueRef::U128(b)) => a.partial_cmp(&b),
+
+        (DbValueRef::F32(a), DbValueRef::F32(b)) => a.partial_cmp(&b),
+        (DbValueRef::F64(a), DbValueRef::F64(b)) => a.partial_cmp(&b),
+
+        (DbValueRef::Decimal(a), DbValueRef::Decimal(b)) => a.partial_cmp(b),
+        (DbValueRef::Bool(a), DbValueRef::Bool(b)) => a.partial_cmp(&b),
+        (DbValueRef::Char(a), DbValueRef::Char(b)) => a.partial_cmp(&b),
+        (DbValueRef::String(a), DbValueRef::String(b)) => a.partial_cmp(b),
+
+        (DbValueRef::Date(a), DbValueRef::Date(b)) => a.partial_cmp(b),
+        (DbValueRef::Time(a), DbValueRef::Time(b)) => a.partial_cmp(b),
+        (DbValueRef::Timestamp(a), DbValueRef::Timestamp(b)) => a.partial_cmp(b),
+        (DbValueRef::Timestamptz(a), DbValueRef::Timestamptz(b)) => a.partial_cmp(b),
+
+        _ => None,
+    }
 }
 
 pub fn strict_eq(left: &DbValue, right: &DbValue) -> bool {
-    macro_rules! eq_inner {
-        ($($variant:ident),+ $(,)?) => {
-            match (left, right) {
-                $(
-                    (DbValue::$variant(a), DbValue::$variant(b)) => a == b,
-                )+
-                // Types like Uuid, Bytes, and Json can go here if you want strict equality for them
-                (DbValue::Uuid(a), DbValue::Uuid(b)) => a == b,
-                (DbValue::Bytes(a), DbValue::Bytes(b)) => a == b,
-                (DbValue::Json(a), DbValue::Json(b)) => a == b,
-                _ => false, // Different variants are not strictly equal
-            }
-        };
-    }
+    match (DbValueRef::from(left), DbValueRef::from(right)) {
+        (DbValueRef::Null, DbValueRef::Null) => true,
 
-    eq_inner!(
-        I8, I16, I32, I64, I128,
-        U8, U16, U32, U64, U128,
-        F32, F64, Decimal,
-        Bool, Char, String,
-        Date, Time, Timestamp, Timestamptz
-    )
+        (DbValueRef::I8(a), DbValueRef::I8(b)) => a == b,
+        (DbValueRef::I16(a), DbValueRef::I16(b)) => a == b,
+        (DbValueRef::I32(a), DbValueRef::I32(b)) => a == b,
+        (DbValueRef::I64(a), DbValueRef::I64(b)) => a == b,
+        (DbValueRef::I128(a), DbValueRef::I128(b)) => a == b,
+
+        (DbValueRef::U8(a), DbValueRef::U8(b)) => a == b,
+        (DbValueRef::U16(a), DbValueRef::U16(b)) => a == b,
+        (DbValueRef::U32(a), DbValueRef::U32(b)) => a == b,
+        (DbValueRef::U64(a), DbValueRef::U64(b)) => a == b,
+        (DbValueRef::U128(a), DbValueRef::U128(b)) => a == b,
+
+        (DbValueRef::F32(a), DbValueRef::F32(b)) => a == b,
+        (DbValueRef::F64(a), DbValueRef::F64(b)) => a == b,
+
+        (DbValueRef::Bool(a), DbValueRef::Bool(b)) => a == b,
+        (DbValueRef::Char(a), DbValueRef::Char(b)) => a == b,
+
+        (DbValueRef::Decimal(a), DbValueRef::Decimal(b)) => a == b,
+        (DbValueRef::String(a), DbValueRef::String(b)) => a == b,
+        (DbValueRef::Date(a), DbValueRef::Date(b)) => a == b,
+        (DbValueRef::Time(a), DbValueRef::Time(b)) => a == b,
+        (DbValueRef::Timestamp(a), DbValueRef::Timestamp(b)) => a == b,
+        (DbValueRef::Timestamptz(a), DbValueRef::Timestamptz(b)) => a == b,
+
+        (DbValueRef::Uuid(a), DbValueRef::Uuid(b)) => a == b,
+        (DbValueRef::Bytes(a), DbValueRef::Bytes(b)) => a == b,
+        (DbValueRef::Json(a), DbValueRef::Json(b)) => a == b,
+
+        _ => false,
+    }
 }

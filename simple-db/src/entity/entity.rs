@@ -5,6 +5,7 @@
 //! database rows.
 
 use crate::{DbContext, query::{Query, filters::{FilterBuilder, FilterDefinition}}, types::{DbError, DbRow, DbValue, FromDbRow}};
+use once_cell::sync::OnceCell;
 
 // ==========================================
 // Entity State Management
@@ -53,7 +54,7 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static
 // ==========================================
 pub struct DbEntity<T: DbEntityModel> {
     pub entity: T,
-    snapshot: Option<DbRow>,
+    snapshot: OnceCell<DbRow>,
     state: DbEntityState
 }
 
@@ -61,16 +62,18 @@ impl<T: DbEntityModel> DbEntity<T> {
     pub fn new(entity: T) -> Self {
         Self {
             entity,
-            snapshot: None,
+            snapshot: OnceCell::new(),
             state: DbEntityState::Added
         }
     }
 
     /// Wraps data loaded from the database, marking the entity as tracked.
     pub fn from_db(entity: T, row: DbRow) -> Self {
+        let snapshot = OnceCell::new();
+        let _ = snapshot.set(row);
         Self {
             entity,
-            snapshot: Some(row),
+            snapshot,
             state: DbEntityState::Tracked,
         }
     }
@@ -79,7 +82,7 @@ impl<T: DbEntityModel> DbEntity<T> {
         let current: DbRow = self.entity.clone().into();
         let mut updates = DbRow::new();
 
-        if let Some(ref original) = self.snapshot {
+        if let Some(original) = self.snapshot.get() {
             for (field, val) in &current.0 {
                 if original.get(field)!= Some(val) {
                     updates.insert(field.clone(), val.clone());
@@ -97,7 +100,7 @@ impl<T: DbEntityModel> DbEntity<T> {
                 let row: DbRow = self.entity.clone().into();
                 let q = Query::insert(T::collection_name()).insert(row.clone());
                 ctx.insert(q).await?;
-                self.snapshot = Some(row);
+                let _ = self.snapshot.set(row);
                 self.state = DbEntityState::Tracked;
             }
             DbEntityState::Tracked => {
@@ -107,7 +110,7 @@ impl<T: DbEntityModel> DbEntity<T> {
                        .set_row(updates)
                        .with_filters(self.entity.key_filter()?);
                     ctx.update(q).await?;
-                    self.snapshot = Some(self.entity.clone().into());
+                    let _ = self.snapshot.set(self.entity.clone().into());
                 }
             }
             _ => {}
@@ -140,7 +143,7 @@ mod tests {
     }
 
     impl FromDbRow for TestUser {
-        fn from_db_row(mut row: DbRow) -> Result<Self, DbError> {
+        fn from_db_row(row: &mut DbRow) -> Result<Self, DbError> {
             Ok(Self {
                 id: row.take_i32("id")?,
                 name: row.take_string("name")?,
@@ -165,7 +168,7 @@ mod tests {
         }
 
         fn key(&self) -> DbEntityKey {
-            vec![("id".to_string(), DbValue::I32(Some(self.id)))]
+            vec![("id".to_string(), DbValue::I32(self.id))]
         }
     }
 
@@ -254,7 +257,7 @@ mod tests {
         }
 
         impl FromDbRow for UserWithoutKey {
-            fn from_db_row(mut row: DbRow) -> Result<Self, DbError> {
+            fn from_db_row(row: &mut DbRow) -> Result<Self, DbError> {
                 Ok(Self {
                     name: row.take_string("name")?,
                 })
@@ -295,7 +298,7 @@ mod tests {
         let entity = DbEntity::from_db(user, row.clone());
 
         // The snapshot should be exactly the row we provided
-        assert_eq!(entity.snapshot.as_ref().unwrap().0.len(), 3);
+        assert_eq!(entity.snapshot.get().unwrap().0.len(), 3);
     }
 
     #[test]
@@ -303,7 +306,7 @@ mod tests {
         let user = create_test_user(1, "Jack", "jack@example.com");
         let entity = DbEntity::new(user);
 
-        assert!(entity.snapshot.is_none());
+        assert!(entity.snapshot.get().is_none());
     }
 
     #[test]
@@ -311,5 +314,6 @@ mod tests {
         assert_eq!(TestUser::collection_name(), "users");
     }
 }
+
 
 

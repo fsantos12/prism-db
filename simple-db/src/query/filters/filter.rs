@@ -4,8 +4,11 @@
 //! Filters can be combined using logical operators (And, Or, Not) to build complex query predicates.
 
 use crate::types::DbValue;
+use smallvec::SmallVec;
 
-pub type FilterDefinition = Vec<Filter>;
+/// Type alias for a list of filter predicates (implicit AND logic).
+/// Stack-allocated for up to 8 filters; larger queries spill to heap automatically.
+pub type FilterDefinition = SmallVec<[Filter; 8]>;
 
 /// Filter AST node representing a single condition or logical operation.
 ///
@@ -51,7 +54,8 @@ pub enum Filter {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests { 
+    use smallvec::smallvec;
     use super::*;
 
     #[test]
@@ -65,25 +69,25 @@ mod tests {
 
     #[test]
     fn test_filter_creation_comparisons() {
-        let filter = Filter::Eq(Box::new("status".to_string()), DbValue::String(Some(Box::new("active".to_string()))));
+        let filter = Filter::Eq(Box::new("status".to_string()), DbValue::String("active".to_string()));
         assert!(matches!(filter, Filter::Eq(_, _)));
 
-        let filter = Filter::Lt(Box::new("age".to_string()), DbValue::I32(Some(18)));
+        let filter = Filter::Lt(Box::new("age".to_string()), DbValue::I32(18));
         assert!(matches!(filter, Filter::Lt(_, _)));
 
-        let filter = Filter::Gte(Box::new("score".to_string()), DbValue::I32(Some(100)));
+        let filter = Filter::Gte(Box::new("score".to_string()), DbValue::I32(100));
         assert!(matches!(filter, Filter::Gte(_, _)));
     }
 
     #[test]
     fn test_filter_creation_pattern_matching() {
-        let filter = Filter::StartsWith(Box::new("name".to_string()), DbValue::String(Some(Box::new("A".to_string()))));
+        let filter = Filter::StartsWith(Box::new("name".to_string()), DbValue::String("A".to_string()));
         assert!(matches!(filter, Filter::StartsWith(_, _)));
 
-        let filter = Filter::Contains(Box::new("text".to_string()), DbValue::String(Some(Box::new("keyword".to_string()))));
+        let filter = Filter::Contains(Box::new("text".to_string()), DbValue::String("keyword".to_string()));
         assert!(matches!(filter, Filter::Contains(_, _)));
 
-        let filter = Filter::EndsWith(Box::new("email".to_string()), DbValue::String(Some(Box::new("@example.com".to_string()))));
+        let filter = Filter::EndsWith(Box::new("email".to_string()), DbValue::String("@example.com".to_string()));
         assert!(matches!(filter, Filter::EndsWith(_, _)));
     }
 
@@ -91,13 +95,13 @@ mod tests {
     fn test_filter_creation_range() {
         let filter = Filter::Between(
             Box::new("age".to_string()),
-            Box::new((DbValue::I32(Some(18)), DbValue::I32(Some(65))))
+            Box::new((DbValue::I32(18), DbValue::I32(65)))
         );
         assert!(matches!(filter, Filter::Between(_, _)));
 
         let filter = Filter::NotBetween(
             Box::new("score".to_string()),
-            Box::new((DbValue::I32(Some(0)), DbValue::I32(Some(50))))
+            Box::new((DbValue::I32(0), DbValue::I32(50)))
         );
         assert!(matches!(filter, Filter::NotBetween(_, _)));
     }
@@ -105,14 +109,14 @@ mod tests {
     #[test]
     fn test_filter_creation_set_membership() {
         let values = vec![
-            DbValue::String(Some(Box::new("active".to_string()))),
-            DbValue::String(Some(Box::new("pending".to_string()))),
-            DbValue::String(Some(Box::new("archived".to_string()))),
+            DbValue::String("active".to_string()),
+            DbValue::String("pending".to_string()),
+            DbValue::String("archived".to_string()),
         ];
         let filter = Filter::In(Box::new("status".to_string()), Box::new(values));
         assert!(matches!(filter, Filter::In(_, _)));
 
-        let values = vec![DbValue::I32(Some(1)), DbValue::I32(Some(2))];
+        let values = vec![DbValue::I32(1), DbValue::I32(2)];
         let filter = Filter::NotIn(Box::new("role_id".to_string()), Box::new(values));
         assert!(matches!(filter, Filter::NotIn(_, _)));
     }
@@ -120,19 +124,19 @@ mod tests {
     #[test]
     fn test_filter_creation_logical_operators() {
         let filters = vec![
-            Filter::Eq(Box::new("status".to_string()), DbValue::String(Some(Box::new("active".to_string())))),
-            Filter::Gte(Box::new("age".to_string()), DbValue::I32(Some(18))),
+            Filter::Eq(Box::new("status".to_string()), DbValue::String("active".to_string())),
+            Filter::Gte(Box::new("age".to_string()), DbValue::I32(18)),
         ];
-        let and_filter = Filter::And(Box::new(filters.clone()));
+        let and_filter = Filter::And(Box::new(filters.clone().into()));
         assert!(matches!(and_filter, Filter::And(_)));
 
-        let or_filter = Filter::Or(Box::new(filters));
+        let or_filter = Filter::Or(Box::new(filters.into()));
         assert!(matches!(or_filter, Filter::Or(_)));
     }
 
     #[test]
     fn test_filter_creation_not() {
-        let inner = Filter::Eq(Box::new("active".to_string()), DbValue::Bool(Some(true)));
+        let inner = Filter::Eq(Box::new("active".to_string()), DbValue::Bool(true));
         let not_filter = Filter::Not(Box::new(inner));
         assert!(matches!(not_filter, Filter::Not(_)));
     }
@@ -146,14 +150,15 @@ mod tests {
     #[test]
     fn test_complex_nested_filters() {
         // (status = 'active' AND age >= 18) OR role = 'admin'
-        let active_and_adult = Filter::And(Box::new(vec![
-            Filter::Eq(Box::new("status".to_string()), DbValue::String(Some(Box::new("active".to_string())))),
-            Filter::Gte(Box::new("age".to_string()), DbValue::I32(Some(18))),
+        let active_and_adult = Filter::And(Box::new(smallvec![
+            Filter::Eq(Box::new("status".to_string()), DbValue::String("active".to_string())),
+            Filter::Gte(Box::new("age".to_string()), DbValue::I32(18)),
         ]));
 
-        let is_admin = Filter::Eq(Box::new("role".to_string()), DbValue::String(Some(Box::new("admin".to_string()))));
+        let is_admin = Filter::Eq(Box::new("role".to_string()), DbValue::String("admin".to_string()));
 
-        let complex = Filter::Or(Box::new(vec![active_and_adult, is_admin]));
+        let complex = Filter::Or(Box::new(smallvec![active_and_adult, is_admin]));
         assert!(matches!(complex, Filter::Or(_)));
     }
 }
+

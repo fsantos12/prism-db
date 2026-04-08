@@ -12,7 +12,7 @@ pub struct SortBuilder {
 
 impl SortBuilder {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self { items: SortDefinition::new() }
     }
 
     /// Internal helper to push a sort instruction and return Self for chaining.

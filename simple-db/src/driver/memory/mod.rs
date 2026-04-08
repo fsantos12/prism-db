@@ -53,40 +53,44 @@ impl MemoryDriver {
 
             // --- Pattern Matching ---
             Filter::StartsWith(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(prefix))) = (row.get(field), val) {
-                    text.starts_with(&**prefix)
+                if let (Some(DbValue::String(text)), DbValue::String(prefix)) = (row.get(field), val) {
+                    text.starts_with(prefix)
                 } else { false }
             },
             Filter::NotStartsWith(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(prefix))) = (row.get(field), val) {
-                   !text.starts_with(&**prefix)
+                if let (Some(DbValue::String(text)), DbValue::String(prefix)) = (row.get(field), val) {
+                   !text.starts_with(prefix)
                 } else { false }
             },
             Filter::EndsWith(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(suffix))) = (row.get(field), val) {
-                    text.ends_with(&**suffix)
+                if let (Some(DbValue::String(text)), DbValue::String(suffix)) = (row.get(field), val) {
+                    text.ends_with(suffix)
                 } else { false }
             },
             Filter::NotEndsWith(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(suffix))) = (row.get(field), val) {
-                   !text.ends_with(&**suffix)
+                if let (Some(DbValue::String(text)), DbValue::String(suffix)) = (row.get(field), val) {
+                   !text.ends_with(suffix)
                 } else { false }
             },
             Filter::Contains(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(sub))) = (row.get(field), val) {
-                    text.contains(&**sub)
+                if let (Some(DbValue::String(text)), DbValue::String(sub)) = (row.get(field), val) {
+                    text.contains(sub)
                 } else { false }
             },
             Filter::NotContains(field, val) => {
-                if let (Some(DbValue::String(Some(text))), DbValue::String(Some(sub))) = (row.get(field), val) {
-                   !text.contains(&**sub)
+                if let (Some(DbValue::String(text)), DbValue::String(sub)) = (row.get(field), val) {
+                   !text.contains(sub)
                 } else { false }
             },
 
             // --- Regex Matching ---
-            Filter::Regex(_field, _pattern) => {
-                // TODO: Implement regex matching with regex crate
-                false
+            Filter::Regex(field, pattern) => {
+                let Some(DbValue::String(text)) = row.get(field) else { return false; };
+                // Compile per-evaluation for now (correctness first).
+                // If this becomes hot, we can add a small cache keyed by pattern.
+                regex::Regex::new(&**pattern)
+                    .ok()
+                    .is_some_and(|re| re.is_match(text))
             },
 
             // --- Range Checks ---
@@ -374,7 +378,7 @@ mod tests {
 
         let query = UpdateQuery::new("users")
             .set_row(updates)
-            .with_filters(vec![Filter::Eq(Box::new("name".to_string()), DbValue::String(Some(Box::new("Alice".to_string()))))]);
+            .with_filters(vec![Filter::Eq(Box::new("name".to_string()), DbValue::String("Alice".to_string()))].into());
 
         let result = driver.update(query).await;
         assert!(result.is_ok());
@@ -397,7 +401,7 @@ mod tests {
 
         let query = UpdateQuery::new("users")
             .set_row(updates)
-            .with_filters(vec![Filter::Eq(Box::new("age".to_string()), DbValue::I32(Some(30)))]);
+            .with_filters(vec![Filter::Eq(Box::new("age".to_string()), DbValue::I32(30))].into());
 
         let result = driver.update(query).await;
         assert!(result.is_ok());
@@ -412,7 +416,7 @@ mod tests {
 
         let query = UpdateQuery::new("nonexistent")
             .set_row(updates)
-            .with_filters(vec![]);
+            .with_filters(vec![].into());
 
         let result = driver.update(query).await;
         assert!(result.is_err());
@@ -424,7 +428,7 @@ mod tests {
         driver.insert(InsertQuery::new("users").values(vec![create_test_row("Alice", 30)])).await.unwrap();
 
         let query = DeleteQuery::new("users")
-            .with_filters(vec![Filter::Eq(Box::new("name".to_string()), DbValue::String(Some(Box::new("Alice".to_string()))))]);
+            .with_filters(vec![Filter::Eq(Box::new("name".to_string()), DbValue::String("Alice".to_string()))].into());
 
         let result = driver.delete(query).await;
         assert!(result.is_ok());
@@ -448,7 +452,7 @@ mod tests {
         driver.insert(InsertQuery::new("users").values(rows)).await.unwrap();
 
         let query = DeleteQuery::new("users")
-            .with_filters(vec![Filter::Eq(Box::new("age".to_string()), DbValue::I32(Some(30)))]);
+            .with_filters(vec![Filter::Eq(Box::new("age".to_string()), DbValue::I32(30))].into());
 
         let result = driver.delete(query).await;
         assert!(result.is_ok());
@@ -462,7 +466,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_nonexistent_collection() {
         let driver = MemoryDriver::new();
-        let query = DeleteQuery::new("nonexistent").with_filters(vec![]);
+        let query = DeleteQuery::new("nonexistent").with_filters(vec![].into());
         let result = driver.delete(query).await;
 
         assert!(result.is_err());

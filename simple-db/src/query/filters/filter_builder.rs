@@ -13,7 +13,7 @@ pub struct FilterBuilder {
 
 impl FilterBuilder {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self { items: FilterDefinition::new() }
     }
 
     pub fn with_filters(mut self, filters: FilterDefinition) -> Self {

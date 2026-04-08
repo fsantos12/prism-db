@@ -16,44 +16,13 @@ use crate::types::{DbError, value::DbValue};
 pub struct DbRow(pub HashMap<String, DbValue>);
 
 macro_rules! impl_type_helpers {
-    // Branch para tipos Boxed (ex: String, Json)
-    ($suffix:ident, $variant:ident, $type:ty, boxed) => {
-        paste::paste! {
-            /// Get a reference to a boxed field. Rust's deref coercion handles &Box<T> -> &T.
-            pub fn [<get_ $suffix>](&self, key: &str) -> Result<&$type, DbError> {
-                match self.get(key) {
-                    Some(DbValue::$variant(Some(v))) => Ok(v), // Deref coercion automatically works here
-                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
-                    Some(other) => Err(DbError::TypeError { 
-                        expected: stringify!($variant).to_string(), 
-                        found: format!("{:?}", other) 
-                    }),
-                    None => Err(DbError::NotFound),
-                }
-            }
-
-            /// Takes ownership and automatically unboxes the value.
-            pub fn [<take_ $suffix>](&mut self, key: &str) -> Result<$type, DbError> {
-                match self.take(key) {
-                    Some(DbValue::$variant(Some(v))) => Ok(*v), // The '*' unboxes the value
-                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
-                    Some(other) => Err(DbError::TypeError { 
-                        expected: stringify!($variant).to_string(), 
-                        found: format!("{:?}", other) 
-                    }),
-                    None => Err(DbError::NotFound),
-                }
-            }
-        }
-    };
-
     // Branch para tipos simples na Stack (ex: i32, bool)
     ($suffix:ident, $variant:ident, $type:ty) => {
         paste::paste! {
             pub fn [<get_ $suffix>](&self, key: &str) -> Result<&$type, DbError> {
                 match self.get(key) {
-                    Some(DbValue::$variant(Some(v))) => Ok(v),
-                    Some(DbValue::$variant(None)) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
+                    Some(DbValue::$variant(v)) => Ok(v),
+                    Some(DbValue::Null) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
                     Some(other) => Err(DbError::TypeError { 
                         expected: stringify!($variant).to_string(), 
                         found: format!("{:?}", other) 
@@ -64,8 +33,13 @@ macro_rules! impl_type_helpers {
 
             pub fn [<take_ $suffix>](&mut self, key: &str) -> Result<$type, DbError> {
                 match self.take(key) {
-                    Some(DbValue::$variant(Some(v))) => Ok(v),
-                    _ => Err(DbError::MappingError(format!("Invalid or missing field '{}'", key))),
+                    Some(DbValue::$variant(v)) => Ok(v),
+                    Some(DbValue::Null) => Err(DbError::MappingError(format!("Field '{}' is NULL", key))),
+                    Some(other) => Err(DbError::TypeError { 
+                        expected: stringify!($variant).to_string(), 
+                        found: format!("{:?}", other) 
+                    }),
+                    None => Err(DbError::NotFound),
                 }
             }
         }
@@ -118,11 +92,11 @@ impl DbRow {
     impl_type_helpers!(timestamptz, Timestamptz, DateTime<Utc>);
 
     // Large types (boxed for efficiency)
-    impl_type_helpers!(decimal, Decimal, Decimal, boxed);
-    impl_type_helpers!(string, String, String, boxed);
-    impl_type_helpers!(bytes, Bytes, Vec<u8>, boxed);
-    impl_type_helpers!(uuid, Uuid, Uuid, boxed);
-    impl_type_helpers!(json, Json, JsonValue, boxed);
+    impl_type_helpers!(decimal, Decimal, Decimal);
+    impl_type_helpers!(string, String, String);
+    impl_type_helpers!(bytes, Bytes, Vec<u8>);
+    impl_type_helpers!(uuid, Uuid, Uuid);
+    impl_type_helpers!(json, Json, JsonValue);
 }
 
 // This allows: .collect::<DbRow>()
@@ -141,7 +115,9 @@ impl IntoIterator for DbRow {
 }
 
 pub trait FromDbRow: Sized {
-    fn from_db_row(row: DbRow) -> Result<Self, DbError>;
+    /// Deserialize a type from a mutable database row reference.
+    /// The implementation can extract fields from the row without cloning the entire row.
+    fn from_db_row(row: &mut DbRow) -> Result<Self, DbError>;
 }
 
 #[cfg(test)]
@@ -161,12 +137,12 @@ mod tests {
         row.insert("name", "Alice");
         row.insert("active", true);
 
-        assert_eq!(row.get("age"), Some(&DbValue::I32(Some(42))));
+        assert_eq!(row.get("age"), Some(&DbValue::I32(42)));
         assert_eq!(
             row.get("name"),
-            Some(&DbValue::String(Some(Box::new("Alice".to_string()))))
+            Some(&DbValue::String("Alice".to_string()))
         );
-        assert_eq!(row.get("active"), Some(&DbValue::Bool(Some(true))));
+        assert_eq!(row.get("active"), Some(&DbValue::Bool(true)));
     }
 
     #[test]
@@ -182,7 +158,7 @@ mod tests {
         row.insert("age", 30i32);
 
         let name = row.take("name");
-        assert_eq!(name, Some(DbValue::String(Some(Box::new("Bob".to_string())))));
+        assert_eq!(name, Some(DbValue::String("Bob".to_string())));
         
         // After take, the field should be gone
         assert!(row.get("name").is_none());
@@ -257,8 +233,8 @@ mod tests {
     #[test]
     fn test_row_from_iter() {
         let items = vec![
-            ("id".to_string(), DbValue::I64(Some(1))),
-            ("name".to_string(), DbValue::String(Some(Box::new("Diana".to_string())))),
+            ("id".to_string(), DbValue::I64(1)),
+            ("name".to_string(), DbValue::String("Diana".to_string())),
         ];
 
         let row: DbRow = items.into_iter().collect();
@@ -277,7 +253,7 @@ mod tests {
         for (key, val) in row {
             count += 1;
             assert!(["x", "y"].contains(&key.as_str()));
-            assert!(matches!(val, DbValue::I32(Some(_))));
+            assert!(matches!(val, DbValue::I32(_)));
         }
         
         assert_eq!(count, 2);

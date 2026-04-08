@@ -19,7 +19,7 @@ struct User {
 }
 
 impl FromDbRow for User {
-    fn from_db_row(mut row: DbRow) -> Result<Self, DbError> {
+    fn from_db_row(row: &mut DbRow) -> Result<Self, DbError> {
         Ok(Self {
             id: row.take_i32("id")?,
             name: row.take_string("name")?,
@@ -44,7 +44,7 @@ impl DbEntityModel for User {
     }
 
     fn key(&self) -> DbEntityKey {
-        vec![("id".to_string(), DbValue::I32(Some(self.id)))]
+        vec![("id".to_string(), DbValue::I32(self.id))]
     }
 }
 
@@ -99,7 +99,7 @@ async fn test_entity_save_persists_to_database() {
     let result = ctx.find(query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let retrieved = User::from_db_row(result[0].clone()).unwrap();
+    let retrieved = User::from_db_row(&mut result[0].clone()).unwrap();
     assert_eq!(retrieved.id, 2);
     assert_eq!(retrieved.name, "Charlie");
 }
@@ -115,7 +115,7 @@ async fn test_entity_from_db_creates_tracked_state() {
     row.insert("name", "Diana");
     row.insert("email", "diana@example.com");
 
-    let user = User::from_db_row(row.clone()).unwrap();
+    let user = User::from_db_row(&mut row.clone()).unwrap();
     let entity = DbEntity::from_db(user, row);
 
     assert!(matches!(entity.state(), DbEntityState::Tracked));
@@ -139,7 +139,7 @@ async fn test_entity_update_detects_dirty_fields() {
     // Load from database (simulating a tracked entity)
     let query = Query::find("users").filter(|fb| fb.eq("id", 3));
     let result = ctx.find(query).await.unwrap();
-    let loaded_user = User::from_db_row(result[0].clone()).unwrap();
+    let loaded_user = User::from_db_row(&mut result[0].clone()).unwrap();
     let mut loaded_entity = DbEntity::from_db(loaded_user.clone(), result[0].clone());
 
     // Modify the entity
@@ -167,7 +167,7 @@ async fn test_entity_update_changes_database() {
     // Load and update
     let query = Query::find("users").filter(|fb| fb.eq("id", 4));
     let result = ctx.find(query).await.unwrap();
-    let loaded_user = User::from_db_row(result[0].clone()).unwrap();
+    let loaded_user = User::from_db_row(&mut result[0].clone()).unwrap();
     let mut loaded_entity = DbEntity::from_db(loaded_user, result[0].clone());
 
     // Modify the email
@@ -177,7 +177,7 @@ async fn test_entity_update_changes_database() {
     // Verify update
     let updated_query = Query::find("users").filter(|fb| fb.eq("id", 4));
     let updated_result = ctx.find(updated_query).await.unwrap();
-    let updated_user = User::from_db_row(updated_result[0].clone()).unwrap();
+let updated_user = User::from_db_row(&mut updated_result[0].clone()).unwrap();
 
     assert_eq!(updated_user.email, "frank.updated@example.com");
 }
@@ -199,7 +199,7 @@ async fn test_entity_no_update_when_no_changes() {
     // Load and save without changes
     let query = Query::find("users").filter(|fb| fb.eq("id", 5));
     let result = ctx.find(query).await.unwrap();
-    let loaded_user = User::from_db_row(result[0].clone()).unwrap();
+    let loaded_user = User::from_db_row(&mut result[0].clone()).unwrap();
     let mut loaded_entity = DbEntity::from_db(loaded_user, result[0].clone());
 
     // Save without any modifications
@@ -329,7 +329,7 @@ async fn test_entity_operations_in_sequence() {
     // Load and modify
     let query = Query::find("users").filter(|fb| fb.eq("id", 13));
     let result = ctx.find(query).await.unwrap();
-    let loaded_user = User::from_db_row(result[0].clone()).unwrap();
+    let loaded_user = User::from_db_row(&mut result[0].clone()).unwrap();
     let mut loaded_entity = DbEntity::from_db(loaded_user, result[0].clone());
 
     loaded_entity.entity.email = "olivia.updated@example.com".to_string();
@@ -338,7 +338,7 @@ async fn test_entity_operations_in_sequence() {
     // Verify modification
     let verify_query = Query::find("users").filter(|fb| fb.eq("id", 13));
     let verify_result = ctx.find(verify_query).await.unwrap();
-    let verified_user = User::from_db_row(verify_result[0].clone()).unwrap();
+    let verified_user = User::from_db_row(&mut verify_result[0].clone()).unwrap();
 
     assert_eq!(verified_user.email, "olivia.updated@example.com");
 
@@ -386,14 +386,14 @@ async fn test_entity_converts_to_row() {
 
     let row: DbRow = user.into();
 
-    assert_eq!(row.get("id"), Some(&DbValue::I32(Some(30))));
+    assert_eq!(row.get("id"), Some(&DbValue::I32(30)));
     assert_eq!(
         row.get("name"),
-        Some(&DbValue::String(Some(Box::new("Quinn".to_string()))))
+        Some(&DbValue::String("Quinn".to_string()))
     );
     assert_eq!(
         row.get("email"),
-        Some(&DbValue::String(Some(Box::new("quinn@example.com".to_string()))))
+        Some(&DbValue::String("quinn@example.com".to_string()))
     );
 }
 
@@ -404,7 +404,7 @@ async fn test_entity_converts_from_row() {
     row.insert("name", "Rachel");
     row.insert("email", "rachel@example.com");
 
-    let user = User::from_db_row(row).unwrap();
+    let user = User::from_db_row(&mut row).unwrap();
 
     assert_eq!(user.id, 31);
     assert_eq!(user.name, "Rachel");
@@ -423,11 +423,11 @@ struct UserRole {
 }
 
 impl FromDbRow for UserRole {
-    fn from_db_row(mut row: DbRow) -> Result<Self, DbError> {
+    fn from_db_row(row: &mut DbRow) -> Result<Self, DbError> {
         Ok(Self {
             user_id: row.take_i32("user_id")?,
             role_id: row.take_i32("role_id")?,
-            assigned_at: row.take_string("assigned_at")?,
+            assigned_at: row.take_string("assigned_at")?
         })
     }
 }
@@ -449,8 +449,8 @@ impl DbEntityModel for UserRole {
 
     fn key(&self) -> DbEntityKey {
         vec![
-            ("user_id".to_string(), DbValue::I32(Some(self.user_id))),
-            ("role_id".to_string(), DbValue::I32(Some(self.role_id))),
+            ("user_id".to_string(), DbValue::I32(self.user_id)),
+            ("role_id".to_string(), DbValue::I32(self.role_id)),
         ]
     }
 }
@@ -486,7 +486,7 @@ async fn test_composite_key_entity_save_and_retrieve() {
     let result = ctx.find(query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let retrieved = UserRole::from_db_row(result[0].clone()).unwrap();
+    let retrieved = UserRole::from_db_row(&mut result[0].clone()).unwrap();
     assert_eq!(retrieved.user_id, 5);
     assert_eq!(retrieved.role_id, 3);
 }

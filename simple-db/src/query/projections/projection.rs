@@ -3,7 +3,11 @@
 //! The `Projection` enum supports selecting individual fields, applying aggregate
 //! functions (Count, Sum, Avg, Min, Max), and aliasing results for custom output.
 
-pub type ProjectionDefinition = Vec<Projection>;
+use smallvec::SmallVec;
+
+/// Type alias for a list of projections (SELECT clauses).
+/// Stack-allocated for up to 10 projections; larger queries spill to heap automatically.
+pub type ProjectionDefinition = SmallVec<[Projection; 10]>;
 
 #[derive(Debug, Clone)]
 pub enum Projection {

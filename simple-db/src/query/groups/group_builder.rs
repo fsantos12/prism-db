@@ -13,7 +13,7 @@ pub struct GroupBuilder {
 
 impl GroupBuilder {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self { items: GroupDefinition::new() }
     }
 
     pub fn field<F: Into<String>>(mut self, field: F) -> Self {

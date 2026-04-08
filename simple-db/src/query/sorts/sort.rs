@@ -3,7 +3,11 @@
 //! The `Sort` enum defines result ordering with support for ascending/descending
 //! directions, null placement control, and random ordering for sampling.
 
-pub type SortDefinition = Vec<Sort>;
+use smallvec::SmallVec;
+
+/// Type alias for a list of sort specifications.
+/// Stack-allocated for up to 4 sorts; larger queries spill to heap automatically.
+pub type SortDefinition = SmallVec<[Sort; 4]>;
 
 #[derive(Debug, Clone)]
 pub enum Sort {

@@ -126,10 +126,10 @@ pub fn derive_db_entity(input: TokenStream) -> TokenStream {
         }
 
         if is_pk {
-            key_fields.push((ident.clone(), field_name.clone()));
+            key_fields.push((ident.clone(), field_name.clone(), ty.clone()));
         }
 
-        field_info.push((ident.clone(), field_name, read_method));
+        field_info.push((ident.clone(), field_name, read_method, ty.clone()));
     }
 
     if key_fields.is_empty() {
@@ -142,7 +142,7 @@ pub fn derive_db_entity(input: TokenStream) -> TokenStream {
     }
 
     // Generate field read code for FromDbRow
-    let field_reads = field_info.iter().map(|(ident, field_name, method)| {
+    let field_reads = field_info.iter().map(|(ident, field_name, method, _ty)| {
         let method_ident = syn::Ident::new(method, proc_macro2::Span::call_site());
         quote! {
             #ident: row.#method_ident(#field_name)?,
@@ -150,22 +150,39 @@ pub fn derive_db_entity(input: TokenStream) -> TokenStream {
     });
 
     // Generate field write code for Into<DbRow>
-    let field_writes = field_info.iter().map(|(ident, _field_name, _method)| {
-        quote! {
-            row.insert(stringify!(#ident), self.#ident.clone());
+    //
+    // Important: `Into<DbRow>` consumes `self`, so we can move non-Copy fields
+    // (String, Vec, Decimal, etc.) without cloning.
+    let field_writes = field_info.iter().map(|(ident, _field_name, _method, ty)| {
+        if is_copy_type(ty) {
+            quote! {
+                row.insert(stringify!(#ident), #ident);
+            }
+        } else {
+            quote! {
+                row.insert(stringify!(#ident), #ident);
+            }
         }
     });
 
+    let field_idents = field_info.iter().map(|(ident, _field_name, _method, _ty)| ident);
+
     // Generate key() method
-    let key_reads = key_fields.iter().map(|(key_ident, key_str)| {
-        quote! {
-            (#key_str.to_string(), ::simple_db::types::DbValue::from(self.#key_ident.clone())),
+    let key_reads = key_fields.iter().map(|(key_ident, key_str, ty)| {
+        if is_copy_type(ty) {
+            quote! {
+                (#key_str.to_string(), ::simple_db::types::DbValue::from(self.#key_ident)),
+            }
+        } else {
+            quote! {
+                (#key_str.to_string(), ::simple_db::types::DbValue::from(self.#key_ident.clone())),
+            }
         }
     });
 
     let expanded = quote! {
         impl ::simple_db::types::FromDbRow for #name {
-            fn from_db_row(mut row: ::simple_db::types::DbRow) -> Result<Self, ::simple_db::types::DbError> {
+            fn from_db_row(row: &mut ::simple_db::types::DbRow) -> Result<Self, ::simple_db::types::DbError> {
                 Ok(Self {
                     #(#field_reads)*
                 })
@@ -174,6 +191,7 @@ pub fn derive_db_entity(input: TokenStream) -> TokenStream {
 
         impl Into<::simple_db::types::DbRow> for #name {
             fn into(self) -> ::simple_db::types::DbRow {
+                let Self { #(#field_idents),* } = self;
                 let mut row = ::simple_db::types::DbRow::new();
                 #(#field_writes)*
                 row
@@ -242,5 +260,36 @@ fn infer_read_method(ty: &Type) -> &'static str {
             }
         }
         _ => "take_string",
+    }
+}
+
+/// Determines if a type is Copy and doesn't need to be cloned
+/// when converting to DbRow or extracting for keys.
+/// 
+/// Copy types: all primitives, small stack-allocated types like Uuid
+/// Non-Copy types: String, Decimal, Vec, serde_json::Value
+fn is_copy_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(type_path) => {
+            let last_segment = type_path.path.segments.last();
+            match last_segment {
+                Some(seg) => {
+                    let type_name = seg.ident.to_string();
+                    matches!(
+                        type_name.as_str(),
+                        // Primitive types (all are Copy)
+                        "i8" | "i16" | "i32" | "i64" | "i128" |
+                        "u8" | "u16" | "u32" | "u64" | "u128" |
+                        "f32" | "f64" | "bool" | "char" |
+                        // Temporal types from chrono (all are Copy)
+                        "NaiveDate" | "NaiveTime" | "NaiveDateTime" | "DateTime" |
+                        // Uuid is Copy
+                        "Uuid"
+                    )
+                }
+                None => false,
+            }
+        }
+        _ => false,
     }
 }
