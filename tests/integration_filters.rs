@@ -5,7 +5,6 @@ use simple_db::{
     DbContext,
 };
 use std::sync::Arc;
-use std::time::Instant;
 
 // ==========================================
 // Null Check Filters
@@ -13,7 +12,6 @@ use std::time::Instant;
 
 #[tokio::test]
 async fn test_filter_is_null_matches_null_values() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -37,13 +35,10 @@ async fn test_filter_is_null_matches_null_values() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER IS_NULL: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_is_not_null_matches_non_null_values() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -67,8 +62,6 @@ async fn test_filter_is_not_null_matches_non_null_values() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER IS_NOT_NULL: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -77,7 +70,6 @@ async fn test_filter_is_not_null_matches_non_null_values() {
 
 #[tokio::test]
 async fn test_filter_not_equals_excludes_matching_values() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -98,13 +90,10 @@ async fn test_filter_not_equals_excludes_matching_values() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER NEQ: 1 record (!=active) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_less_than_or_equal_includes_boundary() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -125,13 +114,10 @@ async fn test_filter_less_than_or_equal_includes_boundary() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER LTE: 2 records (age<=30) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_greater_than_or_equal_includes_boundary() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -152,8 +138,6 @@ async fn test_filter_greater_than_or_equal_includes_boundary() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER GTE: 2 records (score>=75) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -162,7 +146,6 @@ async fn test_filter_greater_than_or_equal_includes_boundary() {
 
 #[tokio::test]
 async fn test_filter_starts_with_matches_beginning() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -183,13 +166,10 @@ async fn test_filter_starts_with_matches_beginning() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER STARTS_WITH: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_ends_with_matches_ending() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -210,13 +190,10 @@ async fn test_filter_ends_with_matches_ending() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER ENDS_WITH: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_contains_matches_substring() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -237,13 +214,10 @@ async fn test_filter_contains_matches_substring() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER CONTAINS: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_not_contains_excludes_substring() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -264,8 +238,6 @@ async fn test_filter_not_contains_excludes_substring() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER NOT_CONTAINS: 1 record | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -274,7 +246,6 @@ async fn test_filter_not_contains_excludes_substring() {
 
 #[tokio::test]
 async fn test_filter_between_includes_boundaries() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -295,13 +266,10 @@ async fn test_filter_between_includes_boundaries() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER BETWEEN: 2 records (age 18-65) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_not_between_excludes_range() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -322,8 +290,6 @@ async fn test_filter_not_between_excludes_range() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER NOT_BETWEEN: 2 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -332,7 +298,6 @@ async fn test_filter_not_between_excludes_range() {
 
 #[tokio::test]
 async fn test_filter_is_in_matches_any_value_in_list() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -353,13 +318,10 @@ async fn test_filter_is_in_matches_any_value_in_list() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 3);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER IN: 3 records | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_not_in_excludes_values_in_list() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -380,8 +342,6 @@ async fn test_filter_not_in_excludes_values_in_list() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER NOT_IN: 1 record | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 // ==========================================
@@ -390,7 +350,6 @@ async fn test_filter_not_in_excludes_values_in_list() {
 
 #[tokio::test]
 async fn test_filter_multiple_conditions_with_and_requires_all_match() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -413,13 +372,10 @@ async fn test_filter_multiple_conditions_with_and_requires_all_match() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 1);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER AND: 1 record (age>=25 AND status=active) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }
 
 #[tokio::test]
 async fn test_filter_with_logical_or_matches_either_condition() {
-    let start = Instant::now();
     let driver = Arc::new(MemoryDriver::new());
     let ctx = DbContext::new(driver);
 
@@ -444,6 +400,4 @@ async fn test_filter_with_logical_or_matches_either_condition() {
     let result = ctx.find(find_query).await.unwrap();
 
     assert_eq!(result.len(), 2);
-    let elapsed = start.elapsed();
-    println!("🔍 FILTER OR: 2 records (admin OR moderator) | ⚡ {:.3}ms", elapsed.as_secs_f64() * 1000.0);
 }

@@ -57,4 +57,18 @@ impl DbContext {
 
         Ok(entities)
     }
+
+    /// Executes a find query and deserializes rows directly to entities (read-only).
+    /// Returns entities without ORM tracking, suitable for read-only queries.
+    /// This is more memory-efficient than find_entities when you don't need change tracking.
+    pub async fn find_entities_readonly<T: DbEntityModel>(&self, query: FindQuery) -> Result<Vec<T>, DbError> {
+        let rows = self.find(query).await?;
+        let mut entities = Vec::with_capacity(rows.len());
+
+        for row in rows {
+            entities.push(T::from_db_row(row)?);
+        }
+
+        Ok(entities)
+    }
 }

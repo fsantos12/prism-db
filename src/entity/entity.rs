@@ -10,19 +10,17 @@ use crate::{DbContext, query::{Query, filters::{FilterBuilder, FilterDefinition}
 // Entity State Management
 // ==========================================
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum DbEntityState {
     /// Entity is new and not yet in the DB.
     Added,
     /// Entity is known to the DB and tracked for changes.
     Tracked,
     /// Entity has been marked for removal or deleted.
-    Deleted,
-    /// Entity is no longer managed by the context.
-    Detached,
+    Deleted
 }
 
 pub type DbEntityKey = Vec<(String, DbValue)>;
-
 // ==========================================
 // Entity Model Contract
 // ==========================================
@@ -46,14 +44,13 @@ pub trait DbEntityModel: FromDbRow + Into<DbRow> + Send + Sync + Clone + 'static
             filter = filter.eq(field, value);
         }
 
-// ==========================================
-// Tracked Entity & Persistence
-// ==========================================
-
         Ok(filter.build())
     }
 }
 
+// ==========================================
+// Tracked Entity & Persistence
+// ==========================================
 pub struct DbEntity<T: DbEntityModel> {
     pub entity: T,
     snapshot: Option<DbRow>,
@@ -69,8 +66,8 @@ impl<T: DbEntityModel> DbEntity<T> {
         }
     }
 
-    /// Internal: Wraps data loaded from the database.
-    pub(crate) fn from_db(entity: T, row: DbRow) -> Self {
+    /// Wraps data loaded from the database, marking the entity as tracked.
+    pub fn from_db(entity: T, row: DbRow) -> Self {
         Self {
             entity,
             snapshot: Some(row),
@@ -113,7 +110,6 @@ impl<T: DbEntityModel> DbEntity<T> {
                     self.snapshot = Some(self.entity.clone().into());
                 }
             }
-            DbEntityState::Detached => return Err(DbError::MappingError("Cannot save detached entity".into())),
             _ => {}
         }
         Ok(())
@@ -129,13 +125,11 @@ impl<T: DbEntityModel> DbEntity<T> {
     }
 
     pub fn state(&self) -> &DbEntityState { &self.state }
-    pub fn detach(&mut self) { self.state = DbEntityState::Detached; }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
 
     // Test entity model
     #[derive(Clone, Debug)]
@@ -185,44 +179,24 @@ mod tests {
 
     #[test]
     fn test_entity_new_is_added_state() {
-        let start = Instant::now();
         let user = create_test_user(1, "Alice", "alice@example.com");
         let entity = DbEntity::new(user);
 
         assert!(matches!(entity.state(), DbEntityState::Added));
-        let elapsed = start.elapsed();
-        println!("✅ test_entity_new_is_added_state: {:?} | 🌟 Entity created | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_entity_from_db_is_tracked_state() {
-        let start = Instant::now();
         let user = create_test_user(1, "Bob", "bob@example.com");
         let row: DbRow = user.clone().into();
 
         let entity = DbEntity::from_db(user, row);
 
         assert!(matches!(entity.state(), DbEntityState::Tracked));
-        let elapsed = start.elapsed();
-        println!("🔍 test_entity_from_db_is_tracked_state: {:?} | 📋 Entity tracked | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
-    }
-
-    #[test]
-    fn test_entity_can_be_detached() {
-        let start = Instant::now();
-        let user = create_test_user(1, "Charlie", "charlie@example.com");
-        let mut entity = DbEntity::new(user);
-
-        entity.detach();
-
-        assert!(matches!(entity.state(), DbEntityState::Detached));
-        let elapsed = start.elapsed();
-        println!("🔍 test_entity_can_be_detached: {:?} | 📋 Entity detached | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_dirty_fields_detects_changes() {
-        let start = Instant::now();
         let user = create_test_user(1, "Diana", "diana@example.com");
         let row: DbRow = user.clone().into();
         let mut entity = DbEntity::from_db(user, row);
@@ -234,13 +208,10 @@ mod tests {
         assert!(dirty.get("name").is_some());
         assert!(dirty.get("id").is_none()); // ID didn't change
         assert!(dirty.get("email").is_none()); // email didn't change
-        let elapsed = start.elapsed();
-        println!("🔍 test_dirty_fields_detects_changes: {:?} | 📌 1 field dirty | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_dirty_fields_multiple_changes() {
-        let start = Instant::now();
         let user = create_test_user(1, "Eve", "eve@example.com");
         let row: DbRow = user.clone().into();
         let mut entity = DbEntity::from_db(user, row);
@@ -253,39 +224,30 @@ mod tests {
         assert!(dirty.get("name").is_some());
         assert!(dirty.get("email").is_some());
         assert!(dirty.get("id").is_none());
-        let elapsed = start.elapsed();
-        println!("🔍 test_dirty_fields_multiple_changes: {:?} | 📌 2 fields dirty | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_dirty_fields_no_changes() {
-        let start = Instant::now();
         let user = create_test_user(1, "Frank", "frank@example.com");
         let row: DbRow = user.clone().into();
         let entity = DbEntity::from_db(user, row);
 
         let dirty = entity.dirty_fields();
         assert_eq!(dirty.0.len(), 0); // No changes
-        let elapsed = start.elapsed();
-        println!("✅ test_dirty_fields_no_changes: {:?} | 📌 No changes | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_key_filter_success() {
-        let start = Instant::now();
         let user = create_test_user(42, "Grace", "grace@example.com");
         let entity = DbEntity::new(user);
 
         let filter = entity.entity.key_filter();
         assert!(filter.is_ok());
         assert_eq!(filter.unwrap().len(), 1);
-        let elapsed = start.elapsed();
-        println!("✅ test_key_filter_success: {:?} | 🔐 Filter created | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_key_filter_error_on_empty_key() {
-        let start = Instant::now();
         #[derive(Clone, Debug)]
         struct UserWithoutKey {
             name: String,
@@ -323,13 +285,10 @@ mod tests {
 
         let filter = user.key_filter();
         assert!(filter.is_err());
-        let elapsed = start.elapsed();
-        println!("❌ test_key_filter_error_on_empty_key: {:?} | 🛑 Error caught | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_entity_snapshot_initialized_from_db() {
-        let start = Instant::now();
         let user = create_test_user(1, "Ivy", "ivy@example.com");
         let row: DbRow = user.clone().into();
 
@@ -337,26 +296,20 @@ mod tests {
 
         // The snapshot should be exactly the row we provided
         assert_eq!(entity.snapshot.as_ref().unwrap().0.len(), 3);
-        let elapsed = start.elapsed();
-        println!("✅ test_entity_snapshot_initialized_from_db: {:?} | 📝 Snapshot created | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_entity_no_snapshot_when_new() {
-        let start = Instant::now();
         let user = create_test_user(1, "Jack", "jack@example.com");
         let entity = DbEntity::new(user);
 
         assert!(entity.snapshot.is_none());
-        let elapsed = start.elapsed();
-        println!("✅ test_entity_no_snapshot_when_new: {:?} | 📝 No snapshot | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 
     #[test]
     fn test_collection_name() {
-        let start = Instant::now();
         assert_eq!(TestUser::collection_name(), "users");
-        let elapsed = start.elapsed();
-        println!("✅ test_collection_name: {:?} | 📚 Collection name verified | ⚡ {:.3}ms", elapsed, elapsed.as_secs_f64() * 1000.0);
     }
 }
+
+
