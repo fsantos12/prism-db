@@ -655,7 +655,24 @@ impl_try_from!(char, as_char, "char", copy);
 impl_try_from!(i128, as_i128, "i128", clone);
 impl_try_from!(u128, as_u128, "u128", clone);
 impl_try_from!(Decimal, as_decimal, "Decimal", clone);
-impl_try_from!(String, as_string, "String", clone);
+impl TryFrom<&DbValue> for String {
+    type Error = DbValueConversionError;
+    #[inline]
+    fn try_from(value: &DbValue) -> Result<Self, Self::Error> {
+        value
+            .as_string()
+            .map(|s| s.to_string())
+            .ok_or(DbValueConversionError { expected: "String" })
+    }
+}
+
+impl TryFrom<DbValue> for String {
+    type Error = DbValueConversionError;
+    #[inline]
+    fn try_from(value: DbValue) -> Result<Self, Self::Error> {
+        String::try_from(&value)
+    }
+}
 impl_try_from!(NaiveDate, as_date, "NaiveDate", clone);
 impl_try_from!(NaiveTime, as_time, "NaiveTime", clone);
 impl_try_from!(NaiveDateTime, as_timestamp, "NaiveDateTime", clone);
