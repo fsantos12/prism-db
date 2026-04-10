@@ -1,3 +1,37 @@
+//! **Compact Database Value Representation**
+//!
+//! This module provides `DbValue`, a memory-efficient tagged union for database values.
+//! It combines type information and value data into a single 64-bit word using bit-packing:
+//!
+//! - **High 16 bits (Tag):** Type identifier + storage category (inline/boxed)
+//! - **Low 48 bits (Payload):** Either the value bits (inline) or a pointer (boxed)
+//!
+//! ## Memory Layout
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────┐
+//! │ Tag (16 bits)      │ Payload (48 bits)                  │
+//! ├─────────────────────────────────────────────────────────┤
+//! │ Category | Type    │ Value bits or pointer address      │
+//! └─────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Categories
+//!
+//! - **INLINE:** Value data fits in 48 bits (8 bytes, bools, floats, chars, etc.)
+//! - **BOXED:** Value requires heap allocation (strings, decimals, dates, JSON, etc.)
+//!
+//! ## Performance Benefits
+//!
+//! - Small values (i8-u32, bool, char) have zero allocation overhead
+//! - No vtable or enum discriminant overhead
+//! - 8-byte footprint enables cache-efficient storage of millions of values
+//! - Compatible with `From<T>` and `TryFrom<&DbValue>` for ergonomic conversions
+//!
+//! ## Architecture Requirement
+//!
+//! Assumes x86-64 with canonical 48-bit user-space pointers. Will not work on 32-bit systems.
+
 use std::ptr::NonNull;
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -7,54 +41,101 @@ use uuid::Uuid;
 
 use crate::types::{TypeError, DbError};
 
-// Tag in the high 16 bits, payload in the low 48.
-const TAG_SHIFT: u64    = 48;
+/// Bit shift to extract tag from the 64-bit encoding. Tag resides in bits 48-63.
+const TAG_SHIFT:    u64 = 48;
+
+/// Mask for payload bits (0-47). Value data or pointer address fits here.
 const PAYLOAD_MASK: u64 = (1 << TAG_SHIFT) - 1;
 
-// To extract Category and Type from the 16-bit tag
+/// Mask to extract category from tag (bits 14-15). Determines inline vs. boxed.
 const CATEGORY_MASK: u64 = 0b1100000000000000;
-const TYPE_MASK: u64     = 0b0011111111111111;
 
-// Category encodes how the payload should be interpreted.
-// - INLINE: payload is value bits (no allocation)
-// - BOXED:  payload is a pointer to a heap allocation (Drop must free)
+/// Mask to extract type identifier from tag (bits 0-13). 14 bits for 24+ types.
+const TYPE_MASK:     u64 = 0b0011111111111111;
+
+/// Category: inline value (no heap allocation required).
 const CATEGORY_INLINE: u64 = 0b0000000000000000;
-const CATEGORY_BOXED: u64  = 0b0100000000000000;
 
-// Value types.
-const TYPE_NULL: u64        = 0;
-const TYPE_BOOL: u64        = 1;
-const TYPE_I8: u64          = 2;
-const TYPE_I16: u64         = 3;
-const TYPE_I32: u64         = 4;
-const TYPE_I64: u64         = 5;
-const TYPE_I128: u64        = 6;
-const TYPE_U8: u64          = 7;
-const TYPE_U16: u64         = 8;
-const TYPE_U32: u64         = 9;
-const TYPE_U64: u64         = 10;
-const TYPE_U128: u64        = 11;
-const TYPE_F32: u64         = 12;
-const TYPE_F64: u64         = 13;
-const TYPE_DECIMAL: u64     = 14;
-const TYPE_CHAR: u64        = 15;
-const TYPE_STRING: u64      = 16;
-const TYPE_DATE: u64        = 17;
-const TYPE_TIME: u64        = 18;
-const TYPE_TIMESTAMP: u64   = 19;
-const TYPE_TIMESTAMPZ: u64  = 20;
-const TYPE_BYTES: u64       = 21;
-const TYPE_UUID: u64        = 22;
-const TYPE_JSON: u64        = 23;
+/// Category: boxed value (stores heap-allocated pointer in payload).
+const CATEGORY_BOXED:  u64 = 0b0100000000000000;
 
-/// Compact DB value: `(tag << 48) | payload`.
+/// Type: NULL / None value.
+const TYPE_NULL:       u64 = 0;
+/// Type: Boolean (1 bit payload: 0 = false, 1 = true).
+const TYPE_BOOL:       u64 = 1;
+/// Type: Signed 8-bit integer (inline, fits in 48 bits).
+const TYPE_I8:         u64 = 2;
+/// Type: Signed 16-bit integer (inline, fits in 48 bits).
+const TYPE_I16:        u64 = 3;
+/// Type: Signed 32-bit integer (inline, fits in 48 bits).
+const TYPE_I32:        u64 = 4;
+/// Type: Signed 64-bit integer (inline if -2^47..2^47-1, else boxed).
+const TYPE_I64:        u64 = 5;
+/// Type: Signed 128-bit integer (boxed).
+const TYPE_I128:       u64 = 6;
+/// Type: Unsigned 8-bit integer (inline, fits in 48 bits).
+const TYPE_U8:         u64 = 7;
+/// Type: Unsigned 16-bit integer (inline, fits in 48 bits).
+const TYPE_U16:        u64 = 8;
+/// Type: Unsigned 32-bit integer (inline, fits in 48 bits).
+const TYPE_U32:        u64 = 9;
+/// Type: Unsigned 64-bit integer (inline if < 2^48, else boxed).
+const TYPE_U64:        u64 = 10;
+/// Type: Unsigned 128-bit integer (boxed).
+const TYPE_U128:       u64 = 11;
+/// Type: IEEE 32-bit float (inline, bits packed in payload).
+const TYPE_F32:        u64 = 12;
+/// Type: IEEE 64-bit float (boxed, requires heap allocation).
+const TYPE_F64:        u64 = 13;
+/// Type: Decimal (arbitrary precision, boxed).
+const TYPE_DECIMAL:    u64 = 14;
+/// Type: Unicode character (inline, fits 21 bits in 48-bit payload).
+const TYPE_CHAR:       u64 = 15;
+/// Type: UTF-8 string (heap-allocated).
+const TYPE_STRING:     u64 = 16;
+/// Type: calendar date without time (boxed).
+const TYPE_DATE:       u64 = 17;
+/// Type: Time of day without date (boxed).
+const TYPE_TIME:       u64 = 18;
+/// Type: Date and time (naive, no timezone, boxed).
+const TYPE_TIMESTAMP:  u64 = 19;
+/// Type: Date and time with UTC timezone (boxed).
+const TYPE_TIMESTAMPZ: u64 = 20;
+/// Type: Raw byte slice (heap-allocated Vec<u8>).
+const TYPE_BYTES:      u64 = 21;
+/// Type: UUID / GUID (128-bit unique identifier, boxed).
+const TYPE_UUID:       u64 = 22;
+/// Type: JSON value (serde_json::Value, boxed).
+const TYPE_JSON:       u64 = 23;
+
+/// A 64-bit tagged value for efficient database operations.
 ///
-/// - **Inline values** store their bits directly in the 48-bit payload (no allocation).
-/// - **Heap values** store a pointer in the 48-bit payload (allocation + `Drop`).
+/// Layout: `(tag << 48) | payload` where tag encodes type + category.
+///
+/// # Examples
+///
+/// ```rust
+/// use simple_db_query::types::DbValue;
+///
+/// // Inline value (no allocation)
+/// let i32_val = DbValue::from_i32(42);
+/// assert_eq!(i32_val.as_i32(), Some(42));
+///
+/// // Boxed value (heap allocation)
+/// let str_val = DbValue::from_string("hello");
+/// assert_eq!(str_val.as_string(), Some("hello"));
+///
+/// // Use .into() for convenience
+/// let val: DbValue = "world".into();
+/// assert_eq!(val.as_string(), Some("world"));
+/// ```
 #[derive(Debug)]
 pub struct DbValue(u64);
 
 impl DbValue {
+    /// Combines category and type into a 16-bit tag.
+    ///
+    /// Asserts that both values fit in their respective masks.
     #[inline]
     fn mk_tag(category: u64, ty: u64) -> u64 {
         debug_assert_eq!(category & !CATEGORY_MASK, 0);
@@ -62,6 +143,9 @@ impl DbValue {
         category | ty
     }
 
+    /// Constructs a `DbValue` from a 16-bit tag and 48-bit payload.
+    ///
+    /// Combines them into a single 64-bit word: `(tag << 48) | payload`.
     #[inline]
     fn from_tag_and_payload(tag: u64, payload: u64) -> Self {
         debug_assert!(tag < (1 << 16));
@@ -69,6 +153,9 @@ impl DbValue {
         Self((tag << TAG_SHIFT) | payload)
     }
 
+    /// Stores a signed 48-bit integer in the payload using 2's complement.
+    ///
+    /// Used for i64s that fit within the 48-bit range.
     #[inline]
     fn from_tag_and_i48(tag: u64, val: i64) -> Self {
         // Store in 2's complement within 48 bits.
@@ -76,15 +163,26 @@ impl DbValue {
         Self::from_tag_and_payload(tag, payload)
     }
 
+    /// Stores an unsigned 48-bit integer in the payload.
+    ///
+    /// Debug assertions ensure the value actually fits in 48 bits.
     #[inline]
     fn from_tag_and_u48(tag: u64, val: u64) -> Self {
         debug_assert_eq!(val & !PAYLOAD_MASK, 0, "value does not fit in 48 bits");
         Self::from_tag_and_payload(tag, val & PAYLOAD_MASK)
     }
 
+    /// Boxes a value and stores its pointer in the payload.
+    ///
+    /// # Architecture Note
+    /// Assumes x86-64 canonical 48-bit user-space pointers. If the pointer
+    /// exceeds 48 bits, this will panic in debug builds and silently truncate
+    /// (causing UB) in release builds.
+    ///
+    /// # Panics
+    /// If `Box::into_raw()` returns null (should never happen).
     #[inline]
     fn from_tag_and_boxed<T>(tag: u64, val: T) -> Self {
-        // Assumes the target uses 48-bit (or less) canonical user-space addresses.
         let raw = Box::into_raw(Box::new(val));
         let ptr = NonNull::new(raw).expect("Box::into_raw returned null");
         let addr = ptr.as_ptr() as usize as u64;
@@ -92,47 +190,176 @@ impl DbValue {
         Self::from_tag_and_payload(tag, addr & PAYLOAD_MASK)
     }
 
+    /// Extracts the 16-bit tag from this value (bits 48-63).
     #[inline]
     fn tag(&self) -> u64 {
         self.0 >> TAG_SHIFT
     }
 
+    /// Extracts the category from the tag (INLINE or BOXED).
     #[inline]
     fn category(&self) -> u64 {
         self.tag() & CATEGORY_MASK
     }
 
+    /// Extracts the type identifier from the tag (distinguishes int/string/etc.).
     #[inline]
     fn ty(&self) -> u64 {
         self.tag() & TYPE_MASK
     }
 
+    /// Extracts the 48-bit payload (value bits or pointer address).
     #[inline]
     fn payload(&self) -> u64 {
         self.0 & PAYLOAD_MASK
     }
 
+    /// Recovers a signed 48-bit integer from the payload with sign extension.
+    ///
+    /// Uses sign-extension to recover negative numbers stored in 2's complement.
     #[inline]
     fn payload_as_i64_i48(&self) -> i64 {
         // Sign-extend from 48-bit 2's complement.
         let p = self.payload();
         let sign_bit = 1u64 << 47;
         if (p & sign_bit) != 0 {
+            // Negative: fill upper 16 bits with 1s
             (p | !PAYLOAD_MASK) as i64
         } else {
+            // Positive: upper bits remain 0
             p as i64
         }
     }
 
+    /// Dereferences the payload as a pointer to `T`.
+    ///
+    /// # Safety
+    /// The payload **must** be a valid pointer to an allocated `T`.
+    /// Called by `Drop` and `Clone` impls only, where the type is known.
     #[inline]
     unsafe fn payload_as_ref<T>(&self) -> &T {
         unsafe { &*(self.payload() as usize as *const T) }
     }
 
-    // ---------------------------------------------------------------------
-    // Heap values (allocation): listed first on purpose.
-    // ---------------------------------------------------------------------
+    // =========================================================================
+    // INLINE VALUE CONSTRUCTORS (zero allocation, value bits stored directly)
+    // =========================================================================
 
+    /// Creates a NULL value.
+    #[inline]
+    pub fn from_null() -> Self {
+        Self::from_tag_and_payload(Self::mk_tag(CATEGORY_INLINE, TYPE_NULL), 0)
+    }
+
+    /// Checks if this value is NULL.
+    #[inline]
+    pub fn is_null(&self) -> bool {
+        self.ty() == TYPE_NULL
+    }
+
+    /// Creates a boolean value.
+    #[inline]
+    pub fn from_bool(val: bool) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_BOOL), if val { 1 } else { 0 })
+    }
+
+    /// Retrieves this value as a boolean, or `None` if the type doesn't match.
+    #[inline]
+    pub fn as_bool(&self) -> Option<bool> {
+        (self.ty() == TYPE_BOOL).then(|| self.payload() != 0)
+    }
+
+    /// Creates a signed 8-bit integer.
+    #[inline]
+    pub fn from_i8(val: i8) -> Self {
+        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I8), val as i64)
+    }
+
+    #[inline]
+    pub fn as_i8(&self) -> Option<i8> {
+        (self.ty() == TYPE_I8).then(|| self.payload_as_i64_i48() as i8)
+    }
+
+    #[inline]
+    pub fn from_i16(val: i16) -> Self {
+        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I16), val as i64)
+    }
+
+    #[inline]
+    pub fn as_i16(&self) -> Option<i16> {
+        (self.ty() == TYPE_I16).then(|| self.payload_as_i64_i48() as i16)
+    }
+
+    #[inline]
+    pub fn from_i32(val: i32) -> Self {
+        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I32), val as i64)
+    }
+
+    #[inline]
+    pub fn as_i32(&self) -> Option<i32> {
+        (self.ty() == TYPE_I32).then(|| self.payload_as_i64_i48() as i32)
+    }
+
+    #[inline]
+    pub fn from_u8(val: u8) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U8), val as u64)
+    }
+
+    #[inline]
+    pub fn as_u8(&self) -> Option<u8> {
+        (self.ty() == TYPE_U8).then(|| self.payload() as u8)
+    }
+
+    #[inline]
+    pub fn from_u16(val: u16) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U16), val as u64)
+    }
+
+    #[inline]
+    pub fn as_u16(&self) -> Option<u16> {
+        (self.ty() == TYPE_U16).then(|| self.payload() as u16)
+    }
+
+    #[inline]
+    pub fn from_u32(val: u32) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U32), val as u64)
+    }
+
+    #[inline]
+    pub fn as_u32(&self) -> Option<u32> {
+        (self.ty() == TYPE_U32).then(|| self.payload() as u32)
+    }
+
+    #[inline]
+    pub fn from_f32(val: f32) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_F32), val.to_bits() as u64)
+    }
+
+    #[inline]
+    pub fn as_f32(&self) -> Option<f32> {
+        (self.ty() == TYPE_F32).then(|| f32::from_bits(self.payload() as u32))
+    }
+
+    #[inline]
+    pub fn from_char(val: char) -> Self {
+        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_CHAR), val as u32 as u64)
+    }
+
+    #[inline]
+    pub fn as_char(&self) -> Option<char> {
+        if self.ty() != TYPE_CHAR {
+            return None;
+        }
+        char::from_u32(self.payload() as u32)
+    }
+
+    // =========================================================================
+    // BOXED VALUE CONSTRUCTORS (heap-allocated or conditionally boxed)
+    // =========================================================================
+
+    /// Creates a signed 64-bit integer.
+    ///
+    /// If the value fits in 48 bits, it's stored inline. Otherwise, boxed.
     #[inline]
     pub fn from_i64(val: i64) -> Self {
         // i64 can be inline (i48) or boxed, depending on range.
@@ -145,6 +372,9 @@ impl DbValue {
         }
     }
 
+    /// Retrieves this value as a signed 64-bit integer.
+    ///
+    /// Returns `None` if the type doesn't match or category is invalid.
     #[inline]
     pub fn as_i64(&self) -> Option<i64> {
         if self.ty() != TYPE_I64 {
@@ -157,6 +387,9 @@ impl DbValue {
         }
     }
 
+    /// Creates an unsigned 64-bit integer.
+    ///
+    /// If the value fits in 48 bits, it's stored inline. Otherwise, boxed.
     #[inline]
     pub fn from_u64(val: u64) -> Self {
         // u64 can be inline (u48) or boxed, depending on range.
@@ -177,12 +410,15 @@ impl DbValue {
         }
     }
 
+    /// Creates an IEEE 64-bit float (always boxed).
+    ///
+    /// f64 values cannot be stored inline and are always heap-allocated.
     #[inline]
     pub fn from_f64(val: f64) -> Self {
-        // f64 always boxes in this layout (it doesn't fit in 48 bits).
         Self::from_tag_and_boxed(Self::mk_tag(CATEGORY_BOXED, TYPE_F64), val.to_bits())
     }
 
+    /// Retrieves this value as an f64, or `None` if the type doesn't match.
     #[inline]
     pub fn as_f64(&self) -> Option<f64> {
         if self.ty() != TYPE_F64 || self.category() != CATEGORY_BOXED {
@@ -225,11 +461,15 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<Decimal>() })
     }
 
+    /// Creates a UTF-8 string value (always boxed).
+    ///
+    /// Accepts anything convertible to `String`.
     #[inline]
     pub fn from_string(val: impl Into<String>) -> Self {
         Self::from_tag_and_boxed(Self::mk_tag(CATEGORY_BOXED, TYPE_STRING), val.into())
     }
 
+    /// Retrieves this value as a string slice, or `None` if the type doesn't match.
     #[inline]
     pub fn as_string(&self) -> Option<&str> {
         if self.ty() != TYPE_STRING || self.category() != CATEGORY_BOXED {
@@ -317,113 +557,6 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<DateTime<Utc>>() })
     }
 
-    // ---------------------------------------------------------------------
-    // Inline values (no allocation): listed after heap values on purpose.
-    // ---------------------------------------------------------------------
-
-    #[inline]
-    pub fn from_null() -> Self {
-        Self::from_tag_and_payload(Self::mk_tag(CATEGORY_INLINE, TYPE_NULL), 0)
-    }
-
-    #[inline]
-    pub fn is_null(&self) -> bool {
-        self.ty() == TYPE_NULL
-    }
-
-    #[inline]
-    pub fn from_bool(val: bool) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_BOOL), if val { 1 } else { 0 })
-    }
-
-    #[inline]
-    pub fn as_bool(&self) -> Option<bool> {
-        (self.ty() == TYPE_BOOL).then(|| self.payload() != 0)
-    }
-
-    #[inline]
-    pub fn from_i8(val: i8) -> Self {
-        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I8), val as i64)
-    }
-
-    #[inline]
-    pub fn as_i8(&self) -> Option<i8> {
-        (self.ty() == TYPE_I8).then(|| self.payload_as_i64_i48() as i8)
-    }
-
-    #[inline]
-    pub fn from_i16(val: i16) -> Self {
-        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I16), val as i64)
-    }
-
-    #[inline]
-    pub fn as_i16(&self) -> Option<i16> {
-        (self.ty() == TYPE_I16).then(|| self.payload_as_i64_i48() as i16)
-    }
-
-    #[inline]
-    pub fn from_i32(val: i32) -> Self {
-        Self::from_tag_and_i48(Self::mk_tag(CATEGORY_INLINE, TYPE_I32), val as i64)
-    }
-
-    #[inline]
-    pub fn as_i32(&self) -> Option<i32> {
-        (self.ty() == TYPE_I32).then(|| self.payload_as_i64_i48() as i32)
-    }
-
-    #[inline]
-    pub fn from_u8(val: u8) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U8), val as u64)
-    }
-
-    #[inline]
-    pub fn as_u8(&self) -> Option<u8> {
-        (self.ty() == TYPE_U8).then(|| self.payload() as u8)
-    }
-
-    #[inline]
-    pub fn from_u16(val: u16) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U16), val as u64)
-    }
-
-    #[inline]
-    pub fn as_u16(&self) -> Option<u16> {
-        (self.ty() == TYPE_U16).then(|| self.payload() as u16)
-    }
-
-    #[inline]
-    pub fn from_u32(val: u32) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_U32), val as u64)
-    }
-
-    #[inline]
-    pub fn as_u32(&self) -> Option<u32> {
-        (self.ty() == TYPE_U32).then(|| self.payload() as u32)
-    }
-
-    #[inline]
-    pub fn from_f32(val: f32) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_F32), val.to_bits() as u64)
-    }
-
-    #[inline]
-    pub fn as_f32(&self) -> Option<f32> {
-        (self.ty() == TYPE_F32).then(|| f32::from_bits(self.payload() as u32))
-    }
-
-    #[inline]
-    pub fn from_char(val: char) -> Self {
-        Self::from_tag_and_u48(Self::mk_tag(CATEGORY_INLINE, TYPE_CHAR), val as u32 as u64)
-    }
-
-    #[inline]
-    pub fn as_char(&self) -> Option<char> {
-        if self.ty() != TYPE_CHAR {
-            return None;
-        }
-        char::from_u32(self.payload() as u32)
-    }
-
     /// Returns a human-readable string of the current value's type
     #[inline]
     pub fn type_name(&self) -> &'static str {
@@ -457,9 +590,13 @@ impl DbValue {
     }
 }
 
+/// Memory safety: deallocates boxed values based on their type tag.
 impl Drop for DbValue {
     fn drop(&mut self) {
+        // Only boxed values need deallocation; inline values have no heap allocation.
         if self.category() != CATEGORY_BOXED { return; }
+        // Reconstruct the original Box<T> and let it drop naturally.
+        // The type tag tells us which type was allocated.
         match self.ty() {
             TYPE_I64 => unsafe { drop(Box::from_raw(self.payload() as usize as *mut i64)) },
             TYPE_I128 => unsafe { drop(Box::from_raw(self.payload() as usize as *mut i128)) },
@@ -480,9 +617,12 @@ impl Drop for DbValue {
     }
 }
 
+/// Deep copy: inline values are bitwise copied; boxed values are re-allocated.
 impl Clone for DbValue {
     fn clone(&self) -> Self {
+        // Inline values can be safely copied bitwise.
         if self.category() != CATEGORY_BOXED { return Self(self.0); }
+        // Boxed values must be deep-cloned to avoid double-free and dangling pointers.
         match self.ty() {
             TYPE_I64 => DbValue::from_i64(unsafe { *self.payload_as_ref::<i64>() }),
             TYPE_U64 => DbValue::from_u64(unsafe { *self.payload_as_ref::<u64>() }),
@@ -503,9 +643,14 @@ impl Clone for DbValue {
     }
 }
 
+/// Compares two `DbValue`s for equality.
+///
+/// Types must match. Equality is determined by the actual value, not the bit representation.
 impl PartialEq for DbValue {
     fn eq(&self, other: &Self) -> bool {
+        // Different types are never equal.
         if self.ty() != other.ty() { return false; }
+        // Compare values based on their actual type.
         match self.ty() {
             TYPE_NULL => true,
             TYPE_BOOL => self.as_bool() == other.as_bool(),
@@ -536,7 +681,9 @@ impl PartialEq for DbValue {
     }
 }
 
-// Implementing From<T>
+/// Macro to implement `From<T> for DbValue` for all value types.
+///
+/// Automatically generates: `impl From<i32> for DbValue { fn from(v) {...} }`
 macro_rules! impl_from_t {
     ($t:ty, $constructor:ident) => {
         impl From<$t> for DbValue {
@@ -579,7 +726,10 @@ impl From<&str> for DbValue {
     }
 }
 
-// Implementing From<Option<T>>
+/// Macro to implement `From<Option<T>> for DbValue` for all value types.
+///
+/// Automatically generates: `impl From<Option<i32>> for DbValue { ... }`
+/// Maps `None` to `DbValue::from_null()`.
 macro_rules! impl_from_option_t {
     ($t:ty, $constructor:ident) => {
         impl From<Option<$t>> for DbValue {
@@ -628,8 +778,14 @@ impl From<Option<&str>> for DbValue {
     }
 }
 
+/// Macro to implement `TryFrom<&DbValue> for T` with type mismatch error handling.
+///
+/// Two variants:
+/// - `copy`: Type is Copy (i32, bool, etc.), can extract by value
+/// - `clone`: Type requires cloning (Decimal, String, etc.)
 macro_rules! impl_try_from {
     ($t:ty, $as_fn:ident, $type_name:expr, copy) => {
+        /// Try to convert a reference to a `DbValue` into the target type.
         impl TryFrom<&DbValue> for $t {
             type Error = DbError;
             #[inline]
@@ -641,6 +797,7 @@ macro_rules! impl_try_from {
             }
         }
 
+        /// Try to convert an owned `DbValue` into the target type.
         impl TryFrom<DbValue> for $t {
             type Error = DbError;
             #[inline]
@@ -749,14 +906,17 @@ mod tests {
     use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
     use serde_json::json;
 
-    // --- TESTES DE VALORES INLINE ---
+    // =========================================================================
+    // INLINE VALUE TESTS (no allocation)
+    // =========================================================================
 
+    /// Tests NULL value creation and type mismatch.
     #[test]
     fn test_null() {
         let val = DbValue::from_null();
         assert!(val.is_null());
         assert_eq!(val.type_name(), "Null");
-        // Tentar ler como outro tipo deve retornar None
+        // Reading as another type should return None
         assert_eq!(val.as_bool(), None);
     }
 
@@ -789,27 +949,28 @@ mod tests {
         assert_eq!(v_char.as_char(), Some('🦀'));
     }
 
-    // --- TESTES DE TIPOS HÍBRIDOS (Inline vs Boxed) ---
+    // =========================================================================
+    // HYBRID VALUE TESTS (types that can be inline OR boxed)
+    // =========================================================================
 
     #[test]
     fn test_i64_boundaries() {
-        // Valor pequeno: deve ficar INLINE
         let v_small = DbValue::from_i64(100_000);
         assert_eq!(v_small.as_i64(), Some(100_000));
         assert_eq!(v_small.category(), CATEGORY_INLINE);
 
-        // Valor negativo pequeno: testando extensão de sinal
+        // Small negative value: testing sign extension
         let v_small_neg = DbValue::from_i64(-100_000);
         assert_eq!(v_small_neg.as_i64(), Some(-100_000));
         assert_eq!(v_small_neg.category(), CATEGORY_INLINE);
 
-        // Valor muito grande (> 48 bits): deve ficar BOXED
+        // Very large value (> 48 bits): should be boxed
         let large_val = 1i64 << 50; 
         let v_large = DbValue::from_i64(large_val);
         assert_eq!(v_large.as_i64(), Some(large_val));
         assert_eq!(v_large.category(), CATEGORY_BOXED);
 
-        // Valor negativo muito grande
+        // Very large negative value
         let large_neg = -(1i64 << 50);
         let v_large_neg = DbValue::from_i64(large_neg);
         assert_eq!(v_large_neg.as_i64(), Some(large_neg));
@@ -818,23 +979,23 @@ mod tests {
 
     #[test]
     fn test_u64_boundaries() {
-        // Valor pequeno: INLINE
         let v_small = DbValue::from_u64(999_999);
         assert_eq!(v_small.as_u64(), Some(999_999));
         assert_eq!(v_small.category(), CATEGORY_INLINE);
 
-        // Valor muito grande: BOXED
+        // Very large value: boxed
         let large_val = 1u64 << 55;
         let v_large = DbValue::from_u64(large_val);
         assert_eq!(v_large.as_u64(), Some(large_val));
         assert_eq!(v_large.category(), CATEGORY_BOXED);
     }
 
-    // --- TESTES DE VALORES BOXED (Heap) ---
+    // =========================================================================
+    // BOXED VALUE TESTS (types always requiring heap allocation)
+    // =========================================================================
 
     #[test]
     fn test_f64() {
-        // f64 é sempre Boxed neste design
         let v_f64 = DbValue::from_f64(2.718281828);
         assert_eq!(v_f64.as_f64(), Some(2.718281828));
         assert_eq!(v_f64.category(), CATEGORY_BOXED);
@@ -851,30 +1012,25 @@ mod tests {
 
     #[test]
     fn test_complex_types() {
-        // Decimal
         let dec = Decimal::from_str("123.45").unwrap();
         let v_dec = DbValue::from_decimal(dec);
         assert_eq!(v_dec.as_decimal(), Some(&dec));
 
-        // Uuid
         let id = Uuid::now_v7();
         let v_uuid = DbValue::from_uuid(id);
         assert_eq!(v_uuid.as_uuid(), Some(&id));
 
-        // Json
-        let j = json!({ "chave": "valor", "numero": 42 });
+        let j = json!({ "key": "value", "number": 42 });
         let v_json = DbValue::from_json(j.clone());
         assert_eq!(v_json.as_json(), Some(&j));
     }
 
     #[test]
     fn test_strings_and_bytes() {
-        // String
-        let texto = String::from("Olá, Rust!");
+        let texto = String::from("Hello, Rust!");
         let v_str = DbValue::from_string(texto.clone());
         assert_eq!(v_str.as_string(), Some(texto.as_str()));
 
-        // Vec<u8> (Bytes)
         let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF];
         let v_bytes = DbValue::from_bytes(bytes.clone());
         assert_eq!(v_bytes.as_bytes(), Some(bytes.as_slice()));
@@ -882,49 +1038,45 @@ mod tests {
 
     #[test]
     fn test_chrono_dates_and_times() {
-        // NaiveDate
         let date = NaiveDate::from_ymd_opt(2026, 4, 10).unwrap();
         let v_date = DbValue::from_date(date);
         assert_eq!(v_date.as_date(), Some(&date));
 
-        // NaiveTime
         let time = NaiveTime::from_hms_opt(10, 30, 0).unwrap();
         let v_time = DbValue::from_time(time);
         assert_eq!(v_time.as_time(), Some(&time));
 
-        // NaiveDateTime
         let dt = date.and_time(time);
         let v_dt = DbValue::from_timestamp(dt);
         assert_eq!(v_dt.as_timestamp(), Some(&dt));
 
-        // DateTime<Utc>
         let dtz = Utc.from_utc_datetime(&dt);
         let v_dtz = DbValue::from_timestampz(dtz);
         assert_eq!(v_dtz.as_timestampz(), Some(&dtz));
     }
 
-    // --- TESTE DE RESILIÊNCIA E CONVERSÕES(Drop/Clone/Mismatch) ---
+    // =========================================================================
+    // BEHAVIOR TESTS (type mismatches, cloning, equality)
+    // =========================================================================
 
     #[test]
     fn test_type_mismatch() {
-        let v_str = DbValue::from_string("Sou um texto");
-        // Tentativas erradas de leitura
+        let v_str = DbValue::from_string("I am text");
         assert_eq!(v_str.as_i32(), None);
         assert_eq!(v_str.as_f64(), None);
         assert_eq!(v_str.as_bool(), None);
     }
 
+    /// Verifies deep cloning: cloned boxed values have separate allocations.
     #[test]
     fn test_clone_and_equality() {
-        let val1 = DbValue::from_string("Teste de Clone");
+        let val1 = DbValue::from_string("Clone Test");
         let val2 = val1.clone();
         
-        // Devem ser iguais
         assert_eq!(val1, val2);
         
-        // Mas os ponteiros devem apontar para alocações diferentes na memória (Deep Copy)
         let ptr1 = val1.payload();
         let ptr2 = val2.payload();
-        assert_ne!(ptr1, ptr2, "Valores Boxed devem ser deep-copied, tendo ponteiros diferentes");
+        assert_ne!(ptr1, ptr2, "Boxed values must be deep-copied with different pointers");
     }
 }
