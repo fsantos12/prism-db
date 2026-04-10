@@ -51,6 +51,7 @@ const TYPE_JSON: u64        = 23;
 ///
 /// - **Inline values** store their bits directly in the 48-bit payload (no allocation).
 /// - **Heap values** store a pointer in the 48-bit payload (allocation + `Drop`).
+#[derive(Debug)]
 pub struct DbValue(u64);
 
 impl DbValue {
@@ -736,5 +737,194 @@ impl TryFrom<DbValue> for Vec<u8> {
     #[inline]
     fn try_from(value: DbValue) -> Result<Self, Self::Error> {
         Vec::<u8>::try_from(&value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+    use uuid::Uuid;
+    use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+    use serde_json::json;
+
+    // --- TESTES DE VALORES INLINE ---
+
+    #[test]
+    fn test_null() {
+        let val = DbValue::from_null();
+        assert!(val.is_null());
+        assert_eq!(val.type_name(), "Null");
+        // Tentar ler como outro tipo deve retornar None
+        assert_eq!(val.as_bool(), None);
+    }
+
+    #[test]
+    fn test_bool() {
+        let v_true = DbValue::from_bool(true);
+        let v_false = DbValue::from_bool(false);
+        assert_eq!(v_true.as_bool(), Some(true));
+        assert_eq!(v_false.as_bool(), Some(false));
+        assert_eq!(v_true.type_name(), "bool");
+    }
+
+    #[test]
+    fn test_integers_inline() {
+        // i8, i16, i32, u8, u16, u32 cabem sempre na payload
+        let v_i8 = DbValue::from_i8(-42);
+        assert_eq!(v_i8.as_i8(), Some(-42));
+
+        let v_u32 = DbValue::from_u32(4_000_000_000);
+        assert_eq!(v_u32.as_u32(), Some(4_000_000_000));
+        assert_eq!(v_u32.category(), CATEGORY_INLINE);
+    }
+
+    #[test]
+    fn test_float_32_and_char() {
+        let v_f32 = DbValue::from_f32(3.1415);
+        assert_eq!(v_f32.as_f32(), Some(3.1415));
+
+        let v_char = DbValue::from_char('🦀');
+        assert_eq!(v_char.as_char(), Some('🦀'));
+    }
+
+    // --- TESTES DE TIPOS HÍBRIDOS (Inline vs Boxed) ---
+
+    #[test]
+    fn test_i64_boundaries() {
+        // Valor pequeno: deve ficar INLINE
+        let v_small = DbValue::from_i64(100_000);
+        assert_eq!(v_small.as_i64(), Some(100_000));
+        assert_eq!(v_small.category(), CATEGORY_INLINE);
+
+        // Valor negativo pequeno: testando extensão de sinal
+        let v_small_neg = DbValue::from_i64(-100_000);
+        assert_eq!(v_small_neg.as_i64(), Some(-100_000));
+        assert_eq!(v_small_neg.category(), CATEGORY_INLINE);
+
+        // Valor muito grande (> 48 bits): deve ficar BOXED
+        let large_val = 1i64 << 50; 
+        let v_large = DbValue::from_i64(large_val);
+        assert_eq!(v_large.as_i64(), Some(large_val));
+        assert_eq!(v_large.category(), CATEGORY_BOXED);
+
+        // Valor negativo muito grande
+        let large_neg = -(1i64 << 50);
+        let v_large_neg = DbValue::from_i64(large_neg);
+        assert_eq!(v_large_neg.as_i64(), Some(large_neg));
+        assert_eq!(v_large_neg.category(), CATEGORY_BOXED);
+    }
+
+    #[test]
+    fn test_u64_boundaries() {
+        // Valor pequeno: INLINE
+        let v_small = DbValue::from_u64(999_999);
+        assert_eq!(v_small.as_u64(), Some(999_999));
+        assert_eq!(v_small.category(), CATEGORY_INLINE);
+
+        // Valor muito grande: BOXED
+        let large_val = 1u64 << 55;
+        let v_large = DbValue::from_u64(large_val);
+        assert_eq!(v_large.as_u64(), Some(large_val));
+        assert_eq!(v_large.category(), CATEGORY_BOXED);
+    }
+
+    // --- TESTES DE VALORES BOXED (Heap) ---
+
+    #[test]
+    fn test_f64() {
+        // f64 é sempre Boxed neste design
+        let v_f64 = DbValue::from_f64(2.718281828);
+        assert_eq!(v_f64.as_f64(), Some(2.718281828));
+        assert_eq!(v_f64.category(), CATEGORY_BOXED);
+    }
+
+    #[test]
+    fn test_large_integers() {
+        let val_i128 = DbValue::from_i128(-999_999_999_999_999_999_999);
+        assert_eq!(val_i128.as_i128(), Some(&-999_999_999_999_999_999_999));
+
+        let val_u128 = DbValue::from_u128(u128::MAX);
+        assert_eq!(val_u128.as_u128(), Some(&u128::MAX));
+    }
+
+    #[test]
+    fn test_complex_types() {
+        // Decimal
+        let dec = Decimal::from_str("123.45").unwrap();
+        let v_dec = DbValue::from_decimal(dec);
+        assert_eq!(v_dec.as_decimal(), Some(&dec));
+
+        // Uuid
+        let id = Uuid::now_v7();
+        let v_uuid = DbValue::from_uuid(id);
+        assert_eq!(v_uuid.as_uuid(), Some(&id));
+
+        // Json
+        let j = json!({ "chave": "valor", "numero": 42 });
+        let v_json = DbValue::from_json(j.clone());
+        assert_eq!(v_json.as_json(), Some(&j));
+    }
+
+    #[test]
+    fn test_strings_and_bytes() {
+        // String
+        let texto = String::from("Olá, Rust!");
+        let v_str = DbValue::from_string(texto.clone());
+        assert_eq!(v_str.as_string(), Some(texto.as_str()));
+
+        // Vec<u8> (Bytes)
+        let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let v_bytes = DbValue::from_bytes(bytes.clone());
+        assert_eq!(v_bytes.as_bytes(), Some(bytes.as_slice()));
+    }
+
+    #[test]
+    fn test_chrono_dates_and_times() {
+        // NaiveDate
+        let date = NaiveDate::from_ymd_opt(2026, 4, 10).unwrap();
+        let v_date = DbValue::from_date(date);
+        assert_eq!(v_date.as_date(), Some(&date));
+
+        // NaiveTime
+        let time = NaiveTime::from_hms_opt(10, 30, 0).unwrap();
+        let v_time = DbValue::from_time(time);
+        assert_eq!(v_time.as_time(), Some(&time));
+
+        // NaiveDateTime
+        let dt = date.and_time(time);
+        let v_dt = DbValue::from_timestamp(dt);
+        assert_eq!(v_dt.as_timestamp(), Some(&dt));
+
+        // DateTime<Utc>
+        let dtz = Utc.from_utc_datetime(&dt);
+        let v_dtz = DbValue::from_timestampz(dtz);
+        assert_eq!(v_dtz.as_timestampz(), Some(&dtz));
+    }
+
+    // --- TESTE DE RESILIÊNCIA E CONVERSÕES(Drop/Clone/Mismatch) ---
+
+    #[test]
+    fn test_type_mismatch() {
+        let v_str = DbValue::from_string("Sou um texto");
+        // Tentativas erradas de leitura
+        assert_eq!(v_str.as_i32(), None);
+        assert_eq!(v_str.as_f64(), None);
+        assert_eq!(v_str.as_bool(), None);
+    }
+
+    #[test]
+    fn test_clone_and_equality() {
+        let val1 = DbValue::from_string("Teste de Clone");
+        let val2 = val1.clone();
+        
+        // Devem ser iguais
+        assert_eq!(val1, val2);
+        
+        // Mas os ponteiros devem apontar para alocações diferentes na memória (Deep Copy)
+        let ptr1 = val1.payload();
+        let ptr2 = val2.payload();
+        assert_ne!(ptr1, ptr2, "Valores Boxed devem ser deep-copied, tendo ponteiros diferentes");
     }
 }
