@@ -35,7 +35,7 @@ use crate::{error::{DbError, TypeError}, value::DbValue, DbResult};
 /// // let named = row.get_by_name("email");
 /// ```
 pub trait DbRow: Send + Sync {
-    /// Returns a reference to the value at the given column index.
+    /// Returns the value at the given column index.
     ///
     /// Returns `None` if the index is out of bounds.
     ///
@@ -46,9 +46,9 @@ pub trait DbRow: Send + Sync {
     /// ```text
     /// let value = row.get_by_index(0)?; // First column
     /// ```
-    fn get_by_index(&self, index: usize) -> Option<&DbValue>;
+    fn get_by_index(&self, index: usize) -> Option<DbValue>;
 
-    /// Returns a reference to the value in the column with the given name.
+    /// Returns the value in the column with the given name.
     ///
     /// Returns `None` if no column with that name exists.
     ///
@@ -59,7 +59,7 @@ pub trait DbRow: Send + Sync {
     /// ```text
     /// let value = row.get_by_name("user_id")?;
     /// ```
-    fn get_by_name(&self, name: &str) -> Option<&DbValue>;
+    fn get_by_name(&self, name: &str) -> Option<DbValue>;
 
     /// Returns the number of columns in this row.
     ///
@@ -101,7 +101,7 @@ pub trait DbRowExt: DbRow {
     /// Provides type-safe access with automatic error conversion.
     ///
     /// # Type Parameters
-    /// * `T` - Target type that implements `TryFrom<&DbValue>`
+    /// * `T` - Target type that implements `TryFrom<DbValue>`
     ///
     /// # Errors
     /// * `TypeError::IndexOutOfBounds` - Index doesn't exist
@@ -116,8 +116,10 @@ pub trait DbRowExt: DbRow {
     /// # Ok(())
     /// # }
     /// ```
-    fn get_by_index_as<'a, T>(&'a self, index: usize) -> DbResult<T>
-    where T: TryFrom<&'a DbValue, Error = Box<dyn DbError>> {
+    fn get_by_index_as<T>(&self, index: usize) -> DbResult<T>
+    where
+        T: TryFrom<DbValue, Error = Box<dyn DbError>>,
+    {
         let value = self.get_by_index(index).ok_or_else(|| TypeError::IndexOutOfBounds(index))?;
         T::try_from(value)
     }
@@ -127,7 +129,7 @@ pub trait DbRowExt: DbRow {
     /// Provides type-safe access by column name with automatic error conversion.
     ///
     /// # Type Parameters
-    /// * `T` - Target type that implements `TryFrom<&DbValue>`
+    /// * `T` - Target type that implements `TryFrom<DbValue>`
     ///
     /// # Errors
     /// * `TypeError::ColumnMissing` - Column name doesn't exist
@@ -142,8 +144,10 @@ pub trait DbRowExt: DbRow {
     /// # Ok(())
     /// # }
     /// ```
-    fn get_by_name_as<'a, T>(&'a self, name: &str) -> DbResult<T>
-    where T: TryFrom<&'a DbValue, Error = Box<dyn DbError>> {
+    fn get_by_name_as<T>(&self, name: &str) -> DbResult<T>
+    where
+        T: TryFrom<DbValue, Error = Box<dyn DbError>>,
+    {
         let value = self.get_by_name(name).ok_or_else(|| TypeError::ColumnMissing(name.to_string()))?;
         T::try_from(value)
     }
@@ -151,4 +155,3 @@ pub trait DbRowExt: DbRow {
 
 /// Blanket implementation: all `DbRow` types automatically implement `DbRowExt`.
 impl<T: DbRow + ?Sized> DbRowExt for T {}
-

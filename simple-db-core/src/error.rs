@@ -23,13 +23,7 @@
 ///     }
 /// }
 /// ```
-pub trait DbError: std::error::Error + Send + Sync {
-    /// Returns a static, human-readable category label for this error.
-    ///
-    /// For full detail (including dynamic fields) use the `Display` impl,
-    /// which is available via `.to_string()` or `format!("{}", err)`.
-    fn message(&self) -> &'static str;
-}
+pub trait DbError: std::error::Error + Send + Sync {}
 
 /// Blanket conversion: any concrete `DbError` can be boxed into `Box<dyn DbError>`.
 ///
@@ -74,12 +68,4 @@ pub enum TypeError {
     ColumnMissing(String),
 }
 
-impl DbError for TypeError {
-    fn message(&self) -> &'static str {
-        match self {
-            Self::Mismatch { .. } => "type mismatch",
-            Self::IndexOutOfBounds(_) => "column index out of bounds",
-            Self::ColumnMissing(_) => "column not found",
-        }
-    }
-}
+impl DbError for TypeError {}

@@ -6,8 +6,11 @@ license.workspace = true
 
 [dependencies]
 # --- Internal ---
+simple-db-core = { workspace = true }
 simple-db-query = { workspace = true }
 simple-db-driver = { workspace = true }
+
+thiserror = { workspace = true }
 
 # --- SQL ---
 sqlx = { workspace = true, features = ["sqlite"] }
@@ -15,3 +18,4 @@ sqlx = { workspace = true, features = ["sqlite"] }
 # --- Async & Runtime ---
 tokio = { workspace = true }
 async-trait = { workspace = true }
+futures = { workspace = true }

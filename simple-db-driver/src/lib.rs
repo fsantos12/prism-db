@@ -25,12 +25,7 @@
 use async_trait::async_trait;
 
 use simple_db_query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery};
-
-// ---------------------------------------------------------------------------
-// Public re-exports — stable surface area for driver consumers
-// ---------------------------------------------------------------------------
-
-pub use simple_db_core::{DbCursor, DbError, DbResult, DbRow, DbRowExt, DbValue};
+use simple_db_core::{DbCursor, DbResult};
 
 // ---------------------------------------------------------------------------
 // Trait definition
