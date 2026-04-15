@@ -22,6 +22,8 @@
 //! - [`DbError`] — base error trait shared across the ecosystem
 //! - [`DbResult`] — `Result<T, Box<dyn DbError>>` alias
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use simple_db_query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery};
@@ -66,6 +68,35 @@ pub trait DbDriver: Send + Sync {
         Ok(())
     }
 }
+
+#[async_trait]
+pub trait DbTransactionalDriver {
+    async fn transaction<F, Fut, T>(&self, f: F) -> DbResult<T>
+    where
+        F: FnOnce(std::sync::Arc<dyn DbDriver>) -> Fut + Send,
+        Fut: std::future::Future<Output = DbResult<T>> + Send,
+        T: Send;
+}
+    
+#[async_trait]
+impl DbTransactionalDriver for Arc<dyn DbDriver> {
+    async fn transaction<F, Fut, T>(&self, f: F) -> DbResult<T>
+    where F: FnOnce(Arc<dyn DbDriver>) -> Fut + Send, Fut: Future<Output = DbResult<T>> + Send, T: Send {
+        self.transaction_begin().await?;
+        let result = f(self.clone()).await;
+        match result {
+            Ok(value) => {
+                self.transaction_commit().await?;
+                Ok(value)
+            }
+            Err(err) => {
+                let _ = self.transaction_rollback().await;
+                Err(err)
+            }
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
