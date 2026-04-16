@@ -1,11 +1,26 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use simple_db_core::{driver::{DbDriver, DbExecutor, DbTransaction}, query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery}, types::{DbCursor, DbError, DbResult}};
+use simple_db_core::{
+    driver::{DbDriver, DbExecutor, DbTransaction},
+    query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery},
+    types::{DbCursor, DbError, DbResult},
+};
 use sqlx::SqlitePool;
+
+use super::{
+    executor::{exec_delete, exec_find, exec_insert, exec_update},
+    SqliteTransaction,
+};
 
 pub struct SqliteDriver {
     pub pool: SqlitePool,
+}
+
+impl SqliteDriver {
+    pub fn new(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
 }
 
 // ==========================================
@@ -14,20 +29,19 @@ pub struct SqliteDriver {
 #[async_trait]
 impl DbExecutor for SqliteDriver {
     async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        // Your logic using sqlx here...
-        todo!()
+        exec_find(&self.pool, query).await
     }
 
     async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        todo!()
+        exec_insert(&self.pool, query).await
     }
 
     async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        todo!()
+        exec_update(&self.pool, query).await
     }
 
     async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        todo!()
+        exec_delete(&self.pool, query).await
     }
 }
 
@@ -36,17 +50,16 @@ impl DbExecutor for SqliteDriver {
 // ==========================================
 #[async_trait]
 impl DbDriver for SqliteDriver {
-    
     async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
-        // Here we will ask sqlx to begin a transaction
-        todo!()
+        let tx = self.pool.begin().await.map_err(DbError::driver)?;
+        Ok(Arc::new(SqliteTransaction::new(tx)))
     }
 
     async fn ping(&self) -> DbResult<()> {
         sqlx::query("SELECT 1")
             .execute(&self.pool)
             .await
-            .map_err(|e| DbError::Driver(Box::new(e)))?;
+            .map_err(DbError::driver)?;
         Ok(())
     }
 }

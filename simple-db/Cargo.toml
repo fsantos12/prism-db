@@ -1,0 +1,17 @@
+[package]
+name = "simple-db"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+sqlite   = ["dep:simple-db-sqlite"]
+postgres = ["dep:simple-db-postgres"]
+mysql    = ["dep:simple-db-mysql"]
+
+[dependencies]
+simple-db-core = { workspace = true }
+
+simple-db-sqlite   = { workspace = true, optional = true }
+simple-db-postgres = { workspace = true, optional = true }
+simple-db-mysql    = { workspace = true, optional = true }

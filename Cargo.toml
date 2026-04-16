@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "simple-db",
     "simple-db-core",
     "simple-db-orm",
     "simple-db-macros",
@@ -16,6 +17,7 @@ license = "MIT"
 
 [workspace.dependencies]
 # --- Internal ---
+simple-db      = { path = "simple-db" }
 simple-db-core = { path = "simple-db-core"}
 simple-db-orm = { path = "simple-db-orm"}
 simple-db-macros = { path = "simple-db-macros"}

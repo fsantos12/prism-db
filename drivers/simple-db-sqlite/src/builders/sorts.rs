@@ -1,6 +1,6 @@
 use simple_db_core::query::{Sort, SortDefinition};
 
-pub fn compile_sorts(sorts: SortDefinition) -> String {
+pub fn compile_sorts(sorts: &SortDefinition) -> String {
     if sorts.is_empty() { return "".to_string() }
 
     let sort_sql = sorts.into_iter()
@@ -11,7 +11,7 @@ pub fn compile_sorts(sorts: SortDefinition) -> String {
     return sort_sql;
 }
 
-fn compile_sort(sort: Sort) -> String {
+fn compile_sort(sort: &Sort) -> String {
     match sort {
         Sort::Asc(smol_str) => format!("{} ASC", smol_str),
         Sort::Desc(smol_str) => format!("{} DESC", smol_str),
