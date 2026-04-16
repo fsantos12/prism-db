@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use simple_db_core::{DbCursor, DbError, DbRow, DbResult};
+use simple_db_core::types::{DbCursor, DbError, DbResult};
 use sqlx::sqlite::SqliteRow;
 
 use crate::types::row::SqliteDbRow;
@@ -18,7 +18,7 @@ impl SqliteDbCursor {
 
 #[async_trait]
 impl DbCursor for SqliteDbCursor {
-    async fn next(&mut self) -> DbResult<Option<Box<dyn DbRow>>> {
+    async fn next(&mut self) -> DbResult<Option<Box<dyn simple_db_core::types::DbRow>>> {
         match self.stream.next().await {
             Some(Ok(sqlite_row)) => Ok(Some(Box::new(SqliteDbRow::new(sqlite_row)))),
             Some(Err(e))        => Err(DbError::driver(e)),

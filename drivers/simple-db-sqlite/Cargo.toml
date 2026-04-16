@@ -7,8 +7,6 @@ license.workspace = true
 [dependencies]
 # --- Internal ---
 simple-db-core = { workspace = true }
-simple-db-query = { workspace = true }
-simple-db-driver = { workspace = true }
 
 thiserror = { workspace = true }
 

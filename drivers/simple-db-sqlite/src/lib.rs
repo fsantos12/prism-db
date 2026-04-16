@@ -1,4 +1,3 @@
 mod types;
 mod builders;
-
-pub mod driver;
+mod driver;

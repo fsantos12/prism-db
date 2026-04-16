@@ -1,4 +1,4 @@
-use simple_db_core::{DbRow, DbValue};
+use simple_db_core::types::{DbRow, DbValue};
 use sqlx::{Column, Row, TypeInfo, ValueRef, sqlite::SqliteRow};
 
 pub struct SqliteDbRow {
