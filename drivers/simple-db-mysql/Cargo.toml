@@ -5,3 +5,15 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# --- Internal ---
+simple-db-core = { workspace = true }
+
+thiserror = { workspace = true }
+
+# --- SQL ---
+sqlx = { workspace = true, features = ["mysql"] }
+
+# --- Async & Runtime ---
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }

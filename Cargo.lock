@@ -1434,6 +1434,14 @@ version = "0.1.0"
 [[package]]
 name = "simple-db-mysql"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "simple-db-core",
+ "sqlx",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "simple-db-orm"
@@ -1442,6 +1450,14 @@ version = "0.1.0"
 [[package]]
 name = "simple-db-postgres"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "simple-db-core",
+ "sqlx",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "simple-db-sqlite"

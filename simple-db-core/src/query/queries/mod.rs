@@ -77,6 +77,35 @@ impl Query {
     }
 }
 
+pub struct Collection(String);
+
+impl Collection {
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        Self(name.into())
+    }
+
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
+    // Query builders
+    pub fn find(&self) -> FindQuery {
+        Query::find(self.name())
+    }
+
+    pub fn insert(&self) -> InsertQuery {
+        Query::insert(self.name())
+    }
+
+    pub fn update(&self) -> UpdateQuery {
+        Query::update(self.name())
+    }
+
+    pub fn delete(&self) -> DeleteQuery {
+        Query::delete(self.name())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
