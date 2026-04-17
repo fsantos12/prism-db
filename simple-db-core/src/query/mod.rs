@@ -37,7 +37,7 @@ mod builders;
 mod queries;
 
 // Re-export the most commonly used types at the crate root for convenience.
-pub use queries::{Query, FindQuery, InsertQuery, UpdateQuery, DeleteQuery};
+pub use queries::{Query, Collection, FindQuery, InsertQuery, UpdateQuery, DeleteQuery};
 pub use builders::{
     Filter, FilterBuilder, FilterDefinition,
     Projection, ProjectionBuilder, ProjectionDefinition,
