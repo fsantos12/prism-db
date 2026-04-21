@@ -4,6 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-simple-db.workspace = true
+simple-db = { workspace = true, features = ["orm"] }
 futures.workspace = true
 tokio.workspace = true

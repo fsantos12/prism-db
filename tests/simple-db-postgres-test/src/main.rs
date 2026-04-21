@@ -9,9 +9,13 @@ async fn main() {
         .await
         .expect("Failed to connect to PostgreSQL");
 
+    // Drop table if exists (fresh start)
+    let _ = driver.execute_raw("DROP TABLE IF EXISTS users").await;
+
+    // Create table
     driver
         .execute_raw(
-            "CREATE TABLE IF NOT EXISTS users (
+            "CREATE TABLE users (
                 id      SERIAL PRIMARY KEY,
                 name    TEXT    NOT NULL,
                 email   TEXT    NOT NULL,

@@ -9,6 +9,10 @@ async fn main() {
         .await
         .expect("Failed to open in-memory SQLite database");
 
+    // Drop table if exists (fresh start)
+    let _ = driver.execute_raw("DROP TABLE IF EXISTS users").await;
+
+    // Create table
     driver
         .execute_raw(
             "CREATE TABLE users (
@@ -29,3 +33,4 @@ async fn main() {
     // --- RUN TEST CASES ---
     run_test_cases(&db_context).await;
 }
+

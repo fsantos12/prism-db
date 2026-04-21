@@ -210,8 +210,8 @@ impl<T: DbEntityTrait> DbEntity<T> {
 
     /// Saves the entity to the database.
     ///
-    /// - If tracked: Updates only the changed fields
-    /// - If untracked: Inserts a new record
+    /// - If tracked: Updates only the changed fields (excluding primary key)
+    /// - If untracked: Inserts a new record (all fields from to_db())
     /// - If detached: Does nothing (detached entities cannot be saved)
     ///
     /// After successful save, the entity becomes tracked with the new original.
@@ -234,12 +234,16 @@ impl<T: DbEntityTrait> DbEntity<T> {
             TrackingState::Tracked(original) => {
                 let current_fields = self.value.to_db();
                 let original_fields = original.to_db();
+                let pk_names: Vec<&str> = self.value.primary_key()
+                    .into_iter()
+                    .map(|(name, _)| name)
+                    .collect();
 
-                // Find only the changed fields
+                // Find only the changed fields, excluding primary key
                 let changed_fields: Vec<(String, DbValue)> = current_fields
                     .iter()
                     .zip(original_fields.iter())
-                    .filter(|(current, orig)| current.1 != orig.1)
+                    .filter(|(current, orig)| !pk_names.contains(&current.0) && current.1 != orig.1)
                     .map(|(current, _)| (current.0.to_string(), current.1.clone()))
                     .collect();
 

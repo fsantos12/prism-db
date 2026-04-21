@@ -5,6 +5,12 @@ use simple_db::DbContext;
 use simple_db::query::Query;
 use simple_db::types::{DbRow, DbRowExt, DbValue};
 
+mod orm_tests;
+use orm_tests::get_orm_test_cases;
+
+mod benchmarks;
+use benchmarks::get_benchmark_cases;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,37 +46,58 @@ pub async fn run_test_cases(context: &DbContext) {
     }
     println!("══════════════════════════════════════════════════════════════");
     println!();
+
+    // Run benchmarks
+    println!("══════════════════════════════════════════════════════════════");
+    println!("  Performance Benchmarks");
+    println!("══════════════════════════════════════════════════════════════");
+    println!();
+
+    for (_name, f) in get_benchmark_cases() {
+        let _ = f(context).await;
+    }
+
+    println!("══════════════════════════════════════════════════════════════");
 }
 
 fn get_test_cases() -> Vec<(&'static str, TestFn)> {
-    vec![
+    let mut cases: Vec<(&'static str, TestFn)> = vec![
         // ── Insert ──────────────────────────────────────────────────────────
-        ("Insert · Single row",                                single_insert_test),
-        ("Insert · Bulk 1000 rows",                            bulk_insert_throughput_test),
+        ("Insert · Single row",                                single_insert_test as TestFn),
+        ("Insert · Bulk 1000 rows",                            bulk_insert_throughput_test as TestFn),
         // ── Find ────────────────────────────────────────────────────────────
-        ("Find · All rows",                                    find_all_test),
-        ("Find · Eq filter",                                   find_eq_filter_test),
-        ("Find · Range  (gt / lt / between)",                  find_range_filter_test),
-        ("Find · String (contains / starts_with / ends_with)", find_string_filter_test),
-        ("Find · In / Not-In",                                 find_in_filter_test),
-        ("Find · OR grouping",                                 find_or_filter_test),
-        ("Find · NOT grouping",                                find_not_filter_test),
-        ("Find · Null checks",                                 find_null_filter_test),
-        ("Find · Pagination",                                  find_pagination_test),
-        ("Find · Sorting  (asc / desc)",                       find_sorting_test),
-        ("Find · Aggregations",                                find_aggregations_test),
-        ("Find · Read throughput  1 000 rows",                 find_throughput_test),
+        ("Find · All rows",                                    find_all_test as TestFn),
+        ("Find · Eq filter",                                   find_eq_filter_test as TestFn),
+        ("Find · Range  (gt / lt / between)",                  find_range_filter_test as TestFn),
+        ("Find · String (contains / starts_with / ends_with)", find_string_filter_test as TestFn),
+        ("Find · In / Not-In",                                 find_in_filter_test as TestFn),
+        ("Find · OR grouping",                                 find_or_filter_test as TestFn),
+        ("Find · NOT grouping",                                find_not_filter_test as TestFn),
+        ("Find · Null checks",                                 find_null_filter_test as TestFn),
+        ("Find · Pagination",                                  find_pagination_test as TestFn),
+        ("Find · Sorting  (asc / desc)",                       find_sorting_test as TestFn),
+        ("Find · Aggregations",                                find_aggregations_test as TestFn),
+        ("Find · Read throughput  1 000 rows",                 find_throughput_test as TestFn),
         // ── Update ──────────────────────────────────────────────────────────
-        ("Update · Single field",                              update_single_field_test),
-        ("Update · Multiple fields",                           update_multiple_fields_test),
-        ("Update · Bulk",                                      update_bulk_test),
+        ("Update · Single field",                              update_single_field_test as TestFn),
+        ("Update · Multiple fields",                           update_multiple_fields_test as TestFn),
+        ("Update · Bulk",                                      update_bulk_test as TestFn),
         // ── Delete ──────────────────────────────────────────────────────────
-        ("Delete · With filter",                               delete_with_filter_test),
-        ("Delete · All rows",                                  delete_all_test),
+        ("Delete · With filter",                               delete_with_filter_test as TestFn),
+        ("Delete · All rows",                                  delete_all_test as TestFn),
         // ── Transactions ────────────────────────────────────────────────────
-        ("Transaction · Commit",                               transaction_commit_test),
-        ("Transaction · Rollback",                             transaction_rollback_test),
-    ]
+        ("Transaction · Commit",                               transaction_commit_test as TestFn),
+        ("Transaction · Rollback",                             transaction_rollback_test as TestFn),
+    ];
+
+    // ── ORM ──────────────────────────────────────────────────────────────────
+    let orm_cases: Vec<(&'static str, TestFn)> = get_orm_test_cases()
+        .into_iter()
+        .map(|(name, f)| (name, f as TestFn))
+        .collect();
+    cases.extend(orm_cases);
+
+    cases
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -926,3 +953,4 @@ fn transaction_rollback_test(context: &DbContext) -> BoxFuture<'static, bool> {
         ok
     })
 }
+

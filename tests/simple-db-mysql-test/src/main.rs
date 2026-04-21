@@ -9,9 +9,13 @@ async fn main() {
         .await
         .expect("Failed to connect to MySQL");
 
+    // Drop table if exists (fresh start)
+    let _ = driver.execute_raw("DROP TABLE IF EXISTS users").await;
+
+    // Create table
     driver
         .execute_raw(
-            "CREATE TABLE IF NOT EXISTS users (
+            "CREATE TABLE users (
                 id      INT PRIMARY KEY AUTO_INCREMENT,
                 name    VARCHAR(255) NOT NULL,
                 email   VARCHAR(255) NOT NULL,
@@ -29,3 +33,4 @@ async fn main() {
     // --- RUN TEST CASES ---
     run_test_cases(&db_context).await;
 }
+

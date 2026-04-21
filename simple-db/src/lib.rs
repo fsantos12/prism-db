@@ -26,6 +26,9 @@ pub use simple_db_core::driver;
 pub use simple_db_core::query;
 pub use simple_db_core::types;
 
+#[cfg(feature = "orm")]
+pub use simple_db_orm::{DbEntity, DbEntityTrait, TrackingState};
+
 #[cfg(feature = "sqlite")]
 pub use simple_db_sqlite::{SqliteDriver, SqlitePool, SqlitePoolOptions, SqliteTransaction};
 

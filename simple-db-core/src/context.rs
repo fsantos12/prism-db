@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use crate::driver::{DbDriver, DbTransaction};
+use async_trait::async_trait;
+use crate::driver::{DbDriver, DbExecutor, DbTransaction};
 use crate::query::{FindQuery, InsertQuery, UpdateQuery, DeleteQuery};
 use crate::types::{DbCursor, DbResult};
 
@@ -45,6 +46,29 @@ impl DbContext {
     /// Pings the database to verify connectivity.
     pub async fn ping(&self) -> DbResult<()> {
         self.driver.ping().await
+    }
+}
+
+#[async_trait]
+impl DbExecutor for DbContext {
+    /// Executes a find query.
+    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
+        self.driver.find(query).await
+    }
+
+    /// Executes an insert query.
+    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
+        self.driver.insert(query).await
+    }
+
+    /// Executes an update query.
+    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
+        self.driver.update(query).await
+    }
+
+    /// Executes a delete query.
+    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
+        self.driver.delete(query).await
     }
 }
 
