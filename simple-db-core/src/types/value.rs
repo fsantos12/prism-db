@@ -245,16 +245,22 @@ impl DbValue {
     // INLINE VALUE CONSTRUCTORS (zero allocation, value bits stored directly)
     // =========================================================================
 
+    /// Checks whether this value is NULL.
+    #[inline]
+    pub fn is_null(&self) -> bool {
+        self.ty() == TYPE_NULL
+    }
+
     /// Creates a NULL value.
     #[inline]
     pub fn from_null() -> Self {
         Self::from_tag_and_payload(Self::mk_tag(CATEGORY_INLINE, TYPE_NULL), 0)
     }
 
-    /// Checks if this value is NULL.
+    /// Checks whether this value is a boolean.
     #[inline]
-    pub fn is_null(&self) -> bool {
-        self.ty() == TYPE_NULL
+    pub fn is_bool(&self) -> bool {
+        self.ty() == TYPE_BOOL
     }
 
     /// Creates a boolean value.
@@ -269,9 +275,10 @@ impl DbValue {
         self.is_bool().then(|| self.payload() != 0)
     }
 
+    /// Checks whether this value is an i8.
     #[inline]
-    pub fn is_bool(&self) -> bool {
-        self.ty() == TYPE_BOOL
+    pub fn is_i8(&self) -> bool {
+        self.ty() == TYPE_I8
     }
 
     /// Creates a signed 8-bit integer.
@@ -285,9 +292,10 @@ impl DbValue {
         self.is_i8().then(|| self.payload_as_i64_i48() as i8)
     }
 
+    /// Checks whether this value is an i16.
     #[inline]
-    pub fn is_i8(&self) -> bool {
-        self.ty() == TYPE_I8
+    pub fn is_i16(&self) -> bool {
+        self.ty() == TYPE_I16
     }
 
     #[inline]
@@ -300,9 +308,10 @@ impl DbValue {
         self.is_i16().then(|| self.payload_as_i64_i48() as i16)
     }
 
+    /// Checks whether this value is an i32.
     #[inline]
-    pub fn is_i16(&self) -> bool {
-        self.ty() == TYPE_I16
+    pub fn is_i32(&self) -> bool {
+        self.ty() == TYPE_I32
     }
 
     #[inline]
@@ -315,9 +324,10 @@ impl DbValue {
         self.is_i32().then(|| self.payload_as_i64_i48() as i32)
     }
 
+    /// Checks whether this value is a u8.
     #[inline]
-    pub fn is_i32(&self) -> bool {
-        self.ty() == TYPE_I32
+    pub fn is_u8(&self) -> bool {
+        self.ty() == TYPE_U8
     }
 
     #[inline]
@@ -330,9 +340,10 @@ impl DbValue {
         self.is_u8().then(|| self.payload() as u8)
     }
 
+    /// Checks whether this value is a u16.
     #[inline]
-    pub fn is_u8(&self) -> bool {
-        self.ty() == TYPE_U8
+    pub fn is_u16(&self) -> bool {
+        self.ty() == TYPE_U16
     }
 
     #[inline]
@@ -345,9 +356,10 @@ impl DbValue {
         self.is_u16().then(|| self.payload() as u16)
     }
 
+    /// Checks whether this value is a u32.
     #[inline]
-    pub fn is_u16(&self) -> bool {
-        self.ty() == TYPE_U16
+    pub fn is_u32(&self) -> bool {
+        self.ty() == TYPE_U32
     }
 
     #[inline]
@@ -360,9 +372,10 @@ impl DbValue {
         self.is_u32().then(|| self.payload() as u32)
     }
 
+    /// Checks whether this value is an f32.
     #[inline]
-    pub fn is_u32(&self) -> bool {
-        self.ty() == TYPE_U32
+    pub fn is_f32(&self) -> bool {
+        self.ty() == TYPE_F32
     }
 
     #[inline]
@@ -375,9 +388,10 @@ impl DbValue {
         self.is_f32().then(|| f32::from_bits(self.payload() as u32))
     }
 
+    /// Checks whether this value is a char.
     #[inline]
-    pub fn is_f32(&self) -> bool {
-        self.ty() == TYPE_F32
+    pub fn is_char(&self) -> bool {
+        self.ty() == TYPE_CHAR
     }
 
     #[inline]
@@ -393,18 +407,17 @@ impl DbValue {
         char::from_u32(self.payload() as u32)
     }
 
-    #[inline]
-    pub fn is_char(&self) -> bool {
-        self.ty() == TYPE_CHAR
-    }
-
     // =========================================================================
     // BOXED VALUE CONSTRUCTORS (heap-allocated or conditionally boxed)
     // =========================================================================
 
+    /// Checks whether this value is an i64.
+    #[inline]
+    pub fn is_i64(&self) -> bool {
+        self.ty() == TYPE_I64
+    }
+
     /// Creates a signed 64-bit integer.
-    ///
-    /// If the value fits in 48 bits, it's stored inline. Otherwise, boxed.
     #[inline]
     pub fn from_i64(val: i64) -> Self {
         // i64 can be inline (i48) or boxed, depending on range.
@@ -417,9 +430,7 @@ impl DbValue {
         }
     }
 
-    /// Retrieves this value as a signed 64-bit integer.
-    ///
-    /// Returns `None` if the type doesn't match or category is invalid.
+    /// Reads this value as a signed 64-bit integer.
     #[inline]
     pub fn as_i64(&self) -> Option<i64> {
         if !self.is_i64() {
@@ -432,14 +443,13 @@ impl DbValue {
         }
     }
 
+    /// Checks whether this value is a u64.
     #[inline]
-    pub fn is_i64(&self) -> bool {
-        self.ty() == TYPE_I64
+    pub fn is_u64(&self) -> bool {
+        self.ty() == TYPE_U64
     }
 
     /// Creates an unsigned 64-bit integer.
-    ///
-    /// If the value fits in 48 bits, it's stored inline. Otherwise, boxed.
     #[inline]
     pub fn from_u64(val: u64) -> Self {
         // u64 can be inline (u48) or boxed, depending on range.
@@ -460,20 +470,19 @@ impl DbValue {
         }
     }
 
+    /// Checks whether this value is an f64.
     #[inline]
-    pub fn is_u64(&self) -> bool {
-        self.ty() == TYPE_U64
+    pub fn is_f64(&self) -> bool {
+        self.ty() == TYPE_F64
     }
 
-    /// Creates an IEEE 64-bit float (always boxed).
-    ///
-    /// f64 values cannot be stored inline and are always heap-allocated.
+    /// Creates an IEEE 64-bit float.
     #[inline]
     pub fn from_f64(val: f64) -> Self {
         Self::from_tag_and_boxed(Self::mk_tag(CATEGORY_BOXED, TYPE_F64), val.to_bits())
     }
 
-    /// Retrieves this value as an f64, or `None` if the type doesn't match.
+    /// Reads this value as an f64.
     #[inline]
     pub fn as_f64(&self) -> Option<f64> {
         if !self.is_f64() || self.category() != CATEGORY_BOXED {
@@ -483,9 +492,10 @@ impl DbValue {
         Some(f64::from_bits(bits))
     }
 
+    /// Checks whether this value is an i128.
     #[inline]
-    pub fn is_f64(&self) -> bool {
-        self.ty() == TYPE_F64
+    pub fn is_i128(&self) -> bool {
+        self.ty() == TYPE_I128
     }
 
     #[inline]
@@ -499,9 +509,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<i128>() })
     }
 
+    /// Checks whether this value is a u128.
     #[inline]
-    pub fn is_i128(&self) -> bool {
-        self.ty() == TYPE_I128
+    pub fn is_u128(&self) -> bool {
+        self.ty() == TYPE_U128
     }
 
     #[inline]
@@ -515,9 +526,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<u128>() })
     }
 
+    /// Checks whether this value is a decimal.
     #[inline]
-    pub fn is_u128(&self) -> bool {
-        self.ty() == TYPE_U128
+    pub fn is_decimal(&self) -> bool {
+        self.ty() == TYPE_DECIMAL
     }
 
     #[inline]
@@ -531,20 +543,19 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<Decimal>() })
     }
 
+    /// Checks whether this value is a string.
     #[inline]
-    pub fn is_decimal(&self) -> bool {
-        self.ty() == TYPE_DECIMAL
+    pub fn is_string(&self) -> bool {
+        self.ty() == TYPE_STRING
     }
 
-    /// Creates a UTF-8 string value (always boxed).
-    ///
-    /// Accepts anything convertible to `String`.
+    /// Creates a UTF-8 string value.
     #[inline]
     pub fn from_string(val: impl Into<String>) -> Self {
         Self::from_tag_and_boxed(Self::mk_tag(CATEGORY_BOXED, TYPE_STRING), val.into())
     }
 
-    /// Retrieves this value as a string slice, or `None` if the type doesn't match.
+    /// Reads this value as a string slice.
     #[inline]
     pub fn as_string(&self) -> Option<&str> {
         if !self.is_string() || self.category() != CATEGORY_BOXED {
@@ -553,9 +564,10 @@ impl DbValue {
         Some(unsafe { self.payload_as_ref::<String>().as_str() })
     }
 
+    /// Checks whether this value is bytes.
     #[inline]
-    pub fn is_string(&self) -> bool {
-        self.ty() == TYPE_STRING
+    pub fn is_bytes(&self) -> bool {
+        self.ty() == TYPE_BYTES
     }
 
     #[inline]
@@ -571,9 +583,10 @@ impl DbValue {
         Some(unsafe { self.payload_as_ref::<Vec<u8>>().as_slice() })
     }
 
+    /// Checks whether this value is a UUID.
     #[inline]
-    pub fn is_bytes(&self) -> bool {
-        self.ty() == TYPE_BYTES
+    pub fn is_uuid(&self) -> bool {
+        self.ty() == TYPE_UUID
     }
 
     #[inline]
@@ -587,9 +600,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<Uuid>() })
     }
 
+    /// Checks whether this value is JSON.
     #[inline]
-    pub fn is_uuid(&self) -> bool {
-        self.ty() == TYPE_UUID
+    pub fn is_json(&self) -> bool {
+        self.ty() == TYPE_JSON
     }
 
     #[inline]
@@ -603,9 +617,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<JsonValue>() })
     }
 
+    /// Checks whether this value is a date.
     #[inline]
-    pub fn is_json(&self) -> bool {
-        self.ty() == TYPE_JSON
+    pub fn is_date(&self) -> bool {
+        self.ty() == TYPE_DATE
     }
 
     #[inline]
@@ -619,9 +634,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<NaiveDate>() })
     }
 
+    /// Checks whether this value is a time.
     #[inline]
-    pub fn is_date(&self) -> bool {
-        self.ty() == TYPE_DATE
+    pub fn is_time(&self) -> bool {
+        self.ty() == TYPE_TIME
     }
 
     #[inline]
@@ -635,9 +651,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<NaiveTime>() })
     }
 
+    /// Checks whether this value is a timestamp.
     #[inline]
-    pub fn is_time(&self) -> bool {
-        self.ty() == TYPE_TIME
+    pub fn is_timestamp(&self) -> bool {
+        self.ty() == TYPE_TIMESTAMP
     }
 
     #[inline]
@@ -651,9 +668,10 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<NaiveDateTime>() })
     }
 
+    /// Checks whether this value is a UTC timestamp.
     #[inline]
-    pub fn is_timestamp(&self) -> bool {
-        self.ty() == TYPE_TIMESTAMP
+    pub fn is_timestampz(&self) -> bool {
+        self.ty() == TYPE_TIMESTAMPZ
     }
 
     #[inline]
@@ -667,12 +685,7 @@ impl DbValue {
             .then(|| unsafe { self.payload_as_ref::<DateTime<Utc>>() })
     }
 
-    #[inline]
-    pub fn is_timestampz(&self) -> bool {
-        self.ty() == TYPE_TIMESTAMPZ
-    }
-
-    /// Returns a human-readable string of the current value's type
+    /// Returns the current type name.
     #[inline]
     pub fn type_name(&self) -> &'static str {
         match self.ty() {
@@ -705,13 +718,10 @@ impl DbValue {
     }
 }
 
-/// Memory safety: deallocates boxed values based on their type tag.
+/// Drops boxed values by type tag.
 impl Drop for DbValue {
     fn drop(&mut self) {
-        // Only boxed values need deallocation; inline values have no heap allocation.
         if self.category() != CATEGORY_BOXED { return; }
-        // Reconstruct the original Box<T> and let it drop naturally.
-        // The type tag tells us which type was allocated.
         match self.ty() {
             TYPE_I64 => unsafe { drop(Box::from_raw(self.payload() as usize as *mut i64)) },
             TYPE_I128 => unsafe { drop(Box::from_raw(self.payload() as usize as *mut i128)) },
@@ -732,12 +742,10 @@ impl Drop for DbValue {
     }
 }
 
-/// Deep copy: inline values are bitwise copied; boxed values are re-allocated.
+/// Clones boxed values by allocating new storage.
 impl Clone for DbValue {
     fn clone(&self) -> Self {
-        // Inline values can be safely copied bitwise.
         if self.category() != CATEGORY_BOXED { return Self(self.0); }
-        // Boxed values must be deep-cloned to avoid double-free and dangling pointers.
         match self.ty() {
             TYPE_I64 => DbValue::from_i64(unsafe { *self.payload_as_ref::<i64>() }),
             TYPE_U64 => DbValue::from_u64(unsafe { *self.payload_as_ref::<u64>() }),
@@ -759,13 +767,9 @@ impl Clone for DbValue {
 }
 
 /// Compares two `DbValue`s for equality.
-///
-/// Types must match. Equality is determined by the actual value, not the bit representation.
 impl PartialEq for DbValue {
     fn eq(&self, other: &Self) -> bool {
-        // Different types are never equal.
         if self.ty() != other.ty() { return false; }
-        // Compare values based on their actual type.
         match self.ty() {
             TYPE_NULL => true,
             TYPE_BOOL => self.as_bool() == other.as_bool(),
@@ -798,9 +802,7 @@ impl PartialEq for DbValue {
 
 impl PartialOrd for DbValue {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // Different types are never equal.
         if self.ty() != other.ty() { return None; }
-        // Compare values based on their actual type.
         match self.ty() {
             TYPE_NULL => Some(std::cmp::Ordering::Equal),
             TYPE_BOOL => self.as_bool().partial_cmp(&other.as_bool()),
@@ -831,9 +833,7 @@ impl PartialOrd for DbValue {
     }
 }
 
-/// Macro to implement `From<T> for DbValue` for all value types.
-///
-/// Automatically generates: `impl From<i32> for DbValue { fn from(v) {...} }`
+/// Implements `From<T> for DbValue`.
 macro_rules! impl_from_t {
     ($t:ty, $constructor:ident) => {
         impl From<$t> for DbValue {
@@ -876,10 +876,7 @@ impl From<&str> for DbValue {
     }
 }
 
-/// Macro to implement `From<Option<T>> for DbValue` for all value types.
-///
-/// Automatically generates: `impl From<Option<i32>> for DbValue { ... }`
-/// Maps `None` to `DbValue::from_null()`.
+/// Implements `From<Option<T>> for DbValue`.
 macro_rules! impl_from_option_t {
     ($t:ty, $constructor:ident) => {
         impl From<Option<$t>> for DbValue {
@@ -928,14 +925,10 @@ impl From<Option<&str>> for DbValue {
     }
 }
 
-/// Macro to implement `TryFrom<&DbValue> for T` with type mismatch error handling.
-///
-/// Two variants:
-/// - `copy`: Type is Copy (i32, bool, etc.), can extract by value
-/// - `clone`: Type requires cloning (Decimal, String, etc.)
+/// Implements `TryFrom<&DbValue> for T`.
 macro_rules! impl_try_from {
     ($t:ty, $as_fn:ident, $type_name:expr, copy) => {
-        /// Try to convert a reference to a `DbValue` into the target type.
+        /// Tries to convert a reference into the target type.
         impl TryFrom<&DbValue> for $t {
             type Error = DbError;
             #[inline]
@@ -947,7 +940,7 @@ macro_rules! impl_try_from {
             }
         }
 
-        /// Try to convert an owned `DbValue` into the target type.
+        /// Tries to convert an owned value into the target type.
         impl TryFrom<DbValue> for $t {
             type Error = DbError;
             #[inline]
@@ -1056,17 +1049,14 @@ mod tests {
     use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
     use serde_json::json;
 
-    // =========================================================================
-    // INLINE VALUE TESTS (no allocation)
-    // =========================================================================
+    // Inline value tests.
 
-    /// Tests NULL value creation and type mismatch.
+    /// Tests NULL handling.
     #[test]
     fn test_null() {
         let val = DbValue::from_null();
         assert!(val.is_null());
         assert_eq!(val.type_name(), "Null");
-        // Reading as another type should return None
         assert_eq!(val.as_bool(), None);
     }
 
@@ -1081,7 +1071,6 @@ mod tests {
 
     #[test]
     fn test_integers_inline() {
-        // i8, i16, i32, u8, u16, u32 cabem sempre na payload
         let v_i8 = DbValue::from_i8(-42);
         assert_eq!(v_i8.as_i8(), Some(-42));
 
@@ -1099,9 +1088,7 @@ mod tests {
         assert_eq!(v_char.as_char(), Some('🦀'));
     }
 
-    // =========================================================================
-    // HYBRID VALUE TESTS (types that can be inline OR boxed)
-    // =========================================================================
+    // Hybrid value tests.
 
     #[test]
     fn test_i64_boundaries() {
@@ -1109,18 +1096,15 @@ mod tests {
         assert_eq!(v_small.as_i64(), Some(100_000));
         assert_eq!(v_small.category(), CATEGORY_INLINE);
 
-        // Small negative value: testing sign extension
         let v_small_neg = DbValue::from_i64(-100_000);
         assert_eq!(v_small_neg.as_i64(), Some(-100_000));
         assert_eq!(v_small_neg.category(), CATEGORY_INLINE);
 
-        // Very large value (> 48 bits): should be boxed
         let large_val = 1i64 << 50; 
         let v_large = DbValue::from_i64(large_val);
         assert_eq!(v_large.as_i64(), Some(large_val));
         assert_eq!(v_large.category(), CATEGORY_BOXED);
 
-        // Very large negative value
         let large_neg = -(1i64 << 50);
         let v_large_neg = DbValue::from_i64(large_neg);
         assert_eq!(v_large_neg.as_i64(), Some(large_neg));
@@ -1133,16 +1117,13 @@ mod tests {
         assert_eq!(v_small.as_u64(), Some(999_999));
         assert_eq!(v_small.category(), CATEGORY_INLINE);
 
-        // Very large value: boxed
         let large_val = 1u64 << 55;
         let v_large = DbValue::from_u64(large_val);
         assert_eq!(v_large.as_u64(), Some(large_val));
         assert_eq!(v_large.category(), CATEGORY_BOXED);
     }
 
-    // =========================================================================
-    // BOXED VALUE TESTS (types always requiring heap allocation)
-    // =========================================================================
+    // Boxed value tests.
 
     #[test]
     fn test_f64() {
