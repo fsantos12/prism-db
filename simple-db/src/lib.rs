@@ -27,10 +27,10 @@ pub use simple_db_core::query;
 pub use simple_db_core::types;
 
 #[cfg(feature = "sqlite")]
-pub use simple_db_sqlite::{SqliteDriver, SqliteTransaction};
+pub use simple_db_sqlite::{SqliteDriver, SqlitePool, SqlitePoolOptions, SqliteTransaction};
 
 #[cfg(feature = "postgres")]
-pub use simple_db_postgres::{PostgresDriver, PostgresTransaction};
+pub use simple_db_postgres::{PgPool, PgPoolOptions, PostgresDriver, PostgresTransaction};
 
 #[cfg(feature = "mysql")]
-pub use simple_db_mysql::{MysqlDriver, MysqlTransaction};
+pub use simple_db_mysql::{MySqlPool, MySqlPoolOptions, MysqlDriver, MysqlTransaction};

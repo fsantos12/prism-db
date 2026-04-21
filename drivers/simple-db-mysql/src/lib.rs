@@ -26,3 +26,5 @@ mod queries;
 mod driver;
 
 pub use driver::{MysqlDriver, MysqlTransaction};
+pub use sqlx::mysql::MySqlPoolOptions;
+pub use sqlx::MySqlPool;

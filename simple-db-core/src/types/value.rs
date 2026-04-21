@@ -266,7 +266,7 @@ impl DbValue {
     /// Retrieves this value as a boolean, or `None` if the type doesn't match.
     #[inline]
     pub fn as_bool(&self) -> Option<bool> {
-        (self.ty() == TYPE_BOOL).then(|| self.payload() != 0)
+        self.is_bool().then(|| self.payload() != 0)
     }
 
     #[inline]
@@ -282,7 +282,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_i8(&self) -> Option<i8> {
-        (self.ty() == TYPE_I8).then(|| self.payload_as_i64_i48() as i8)
+        self.is_i8().then(|| self.payload_as_i64_i48() as i8)
     }
 
     #[inline]
@@ -297,7 +297,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_i16(&self) -> Option<i16> {
-        (self.ty() == TYPE_I16).then(|| self.payload_as_i64_i48() as i16)
+        self.is_i16().then(|| self.payload_as_i64_i48() as i16)
     }
 
     #[inline]
@@ -312,7 +312,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_i32(&self) -> Option<i32> {
-        (self.ty() == TYPE_I32).then(|| self.payload_as_i64_i48() as i32)
+        self.is_i32().then(|| self.payload_as_i64_i48() as i32)
     }
 
     #[inline]
@@ -327,7 +327,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_u8(&self) -> Option<u8> {
-        (self.ty() == TYPE_U8).then(|| self.payload() as u8)
+        self.is_u8().then(|| self.payload() as u8)
     }
 
     #[inline]
@@ -342,7 +342,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_u16(&self) -> Option<u16> {
-        (self.ty() == TYPE_U16).then(|| self.payload() as u16)
+        self.is_u16().then(|| self.payload() as u16)
     }
 
     #[inline]
@@ -357,7 +357,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_u32(&self) -> Option<u32> {
-        (self.ty() == TYPE_U32).then(|| self.payload() as u32)
+        self.is_u32().then(|| self.payload() as u32)
     }
 
     #[inline]
@@ -372,7 +372,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_f32(&self) -> Option<f32> {
-        (self.ty() == TYPE_F32).then(|| f32::from_bits(self.payload() as u32))
+        self.is_f32().then(|| f32::from_bits(self.payload() as u32))
     }
 
     #[inline]
@@ -387,7 +387,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_char(&self) -> Option<char> {
-        if self.ty() != TYPE_CHAR {
+        if !self.is_char() {
             return None;
         }
         char::from_u32(self.payload() as u32)
@@ -422,7 +422,7 @@ impl DbValue {
     /// Returns `None` if the type doesn't match or category is invalid.
     #[inline]
     pub fn as_i64(&self) -> Option<i64> {
-        if self.ty() != TYPE_I64 {
+        if !self.is_i64() {
             return None;
         }
         match self.category() {
@@ -452,7 +452,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_u64(&self) -> Option<u64> {
-        if self.ty() != TYPE_U64 { return None; }
+        if !self.is_u64() { return None; }
         match self.category() {
             CATEGORY_INLINE => Some(self.payload()),
             CATEGORY_BOXED => Some(unsafe { *self.payload_as_ref::<u64>() }),
@@ -476,7 +476,7 @@ impl DbValue {
     /// Retrieves this value as an f64, or `None` if the type doesn't match.
     #[inline]
     pub fn as_f64(&self) -> Option<f64> {
-        if self.ty() != TYPE_F64 || self.category() != CATEGORY_BOXED {
+        if !self.is_f64() || self.category() != CATEGORY_BOXED {
             return None;
         }
         let bits = unsafe { *self.payload_as_ref::<u64>() };
@@ -495,7 +495,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_i128(&self) -> Option<&i128> {
-        (self.ty() == TYPE_I128 && self.category() == CATEGORY_BOXED)
+        (self.is_i128() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<i128>() })
     }
 
@@ -511,7 +511,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_u128(&self) -> Option<&u128> {
-        (self.ty() == TYPE_U128 && self.category() == CATEGORY_BOXED)
+        (self.is_u128() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<u128>() })
     }
 
@@ -527,7 +527,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_decimal(&self) -> Option<&Decimal> {
-        (self.ty() == TYPE_DECIMAL && self.category() == CATEGORY_BOXED)
+        (self.is_decimal() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<Decimal>() })
     }
 
@@ -547,7 +547,7 @@ impl DbValue {
     /// Retrieves this value as a string slice, or `None` if the type doesn't match.
     #[inline]
     pub fn as_string(&self) -> Option<&str> {
-        if self.ty() != TYPE_STRING || self.category() != CATEGORY_BOXED {
+        if !self.is_string() || self.category() != CATEGORY_BOXED {
             return None;
         }
         Some(unsafe { self.payload_as_ref::<String>().as_str() })
@@ -565,7 +565,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        if self.ty() != TYPE_BYTES || self.category() != CATEGORY_BOXED {
+        if !self.is_bytes() || self.category() != CATEGORY_BOXED {
             return None;
         }
         Some(unsafe { self.payload_as_ref::<Vec<u8>>().as_slice() })
@@ -583,7 +583,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_uuid(&self) -> Option<&Uuid> {
-        (self.ty() == TYPE_UUID && self.category() == CATEGORY_BOXED)
+        (self.is_uuid() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<Uuid>() })
     }
 
@@ -599,7 +599,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_json(&self) -> Option<&JsonValue> {
-        (self.ty() == TYPE_JSON && self.category() == CATEGORY_BOXED)
+        (self.is_json() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<JsonValue>() })
     }
 
@@ -615,7 +615,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_date(&self) -> Option<&NaiveDate> {
-        (self.ty() == TYPE_DATE && self.category() == CATEGORY_BOXED)
+        (self.is_date() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<NaiveDate>() })
     }
 
@@ -631,7 +631,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_time(&self) -> Option<&NaiveTime> {
-        (self.ty() == TYPE_TIME && self.category() == CATEGORY_BOXED)
+        (self.is_time() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<NaiveTime>() })
     }
 
@@ -647,7 +647,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_timestamp(&self) -> Option<&NaiveDateTime> {
-        (self.ty() == TYPE_TIMESTAMP && self.category() == CATEGORY_BOXED)
+        (self.is_timestamp() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<NaiveDateTime>() })
     }
 
@@ -663,7 +663,7 @@ impl DbValue {
 
     #[inline]
     pub fn as_timestampz(&self) -> Option<&DateTime<Utc>> {
-        (self.ty() == TYPE_TIMESTAMPZ && self.category() == CATEGORY_BOXED)
+        (self.is_timestampz() && self.category() == CATEGORY_BOXED)
             .then(|| unsafe { self.payload_as_ref::<DateTime<Utc>>() })
     }
 

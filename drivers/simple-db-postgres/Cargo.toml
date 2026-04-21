@@ -8,7 +8,10 @@ license.workspace = true
 # --- Internal ---
 simple-db-core = { workspace = true }
 
-thiserror = { workspace = true }
+thiserror    = { workspace = true }
+serde_json   = { workspace = true }
+uuid         = { workspace = true }
+chrono       = { workspace = true }
 
 # --- SQL ---
 sqlx         = { workspace = true, features = ["postgres", "rust_decimal"] }

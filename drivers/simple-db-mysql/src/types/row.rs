@@ -1,12 +1,13 @@
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use rust_decimal::Decimal;
+use serde_json::Value as JsonValue;
 use simple_db_core::types::{DbRow, DbValue};
 use sqlx::{mysql::MySqlRow, Column, Row, TypeInfo, ValueRef};
 
 /// Adapter that wraps a [`MySqlRow`] and exposes it through the [`DbRow`] interface.
 ///
 /// Maps MySQL type names to the appropriate [`DbValue`] variants.
-/// String-based types (CHAR, TEXT, JSON, DATE, TIME, TIMESTAMP) are all
-/// returned as [`DbValue::from_string`]. Unknown types are mapped to NULL.
+/// Unknown types are mapped to NULL.
 pub struct MysqlDbRow {
     row: MySqlRow,
 }
@@ -25,38 +26,94 @@ impl DbRow for MysqlDbRow {
 
         let type_name = raw_value.type_info().name().to_uppercase();
         match type_name.as_str() {
-            "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" | "BIGINT" => {
+            // --- integers ---
+            "TINYINT" => {
+                let val: i8 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_i8(val))
+            }
+            "SMALLINT" => {
+                let val: i16 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_i16(val))
+            }
+            "MEDIUMINT" | "INT" | "INTEGER" => {
+                let val: i32 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_i32(val))
+            }
+            "BIGINT" => {
                 let val: i64 = self.row.try_get(index).ok()?;
                 Some(DbValue::from_i64(val))
             }
-            "FLOAT" | "DOUBLE" => {
+            "TINYINT UNSIGNED" => {
+                let val: u8 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_u8(val))
+            }
+            "SMALLINT UNSIGNED" => {
+                let val: u16 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_u16(val))
+            }
+            "MEDIUMINT UNSIGNED" | "INT UNSIGNED" | "INTEGER UNSIGNED" => {
+                let val: u32 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_u32(val))
+            }
+            "BIGINT UNSIGNED" => {
+                let val: u64 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_u64(val))
+            }
+
+            // --- floats ---
+            "FLOAT" => {
+                let val: f32 = self.row.try_get(index).ok()?;
+                Some(DbValue::from_f32(val))
+            }
+            "DOUBLE" => {
                 let val: f64 = self.row.try_get(index).ok()?;
                 Some(DbValue::from_f64(val))
             }
-            // AVG/SUM aggregates on integer columns return NEWDECIMAL (MySQL wire type 246).
-            // Decode via rust_decimal then convert to f64.
+
+            // --- decimal ---
             "DECIMAL" | "NEWDECIMAL" => {
                 let val: Decimal = self.row.try_get(index).ok()?;
-                let f: f64 = val.to_string().parse().ok()?;
-                Some(DbValue::from_f64(f))
+                Some(DbValue::from_decimal(val))
             }
+
+            // --- boolean ---
             "BOOL" | "BOOLEAN" => {
                 let val: bool = self.row.try_get(index).ok()?;
                 Some(DbValue::from_bool(val))
             }
+
+            // --- binary ---
             "BLOB" | "TINYBLOB" | "MEDIUMBLOB" | "LONGBLOB" | "VARBINARY" | "BINARY" => {
                 let val: Vec<u8> = self.row.try_get(index).ok()?;
                 Some(DbValue::from_bytes(val))
             }
-            other if other.contains("CHAR")
-                || other.contains("TEXT")
-                || other.contains("JSON")
-                || other.contains("DATE")
-                || other.contains("TIME")
-                || other.contains("TIMESTAMP") => {
+
+            // --- text ---
+            "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDIUMTEXT" | "LONGTEXT" | "ENUM" | "SET" => {
                 let val: String = self.row.try_get(index).ok()?;
                 Some(DbValue::from_string(val))
             }
+
+            // --- json ---
+            "JSON" => {
+                let val: JsonValue = self.row.try_get(index).ok()?;
+                Some(DbValue::from_json(val))
+            }
+
+            // --- date / time ---
+            "DATE" => {
+                let val: NaiveDate = self.row.try_get(index).ok()?;
+                Some(DbValue::from_date(val))
+            }
+            "TIME" => {
+                let val: NaiveTime = self.row.try_get(index).ok()?;
+                Some(DbValue::from_time(val))
+            }
+            "DATETIME" | "TIMESTAMP" => {
+                let val: NaiveDateTime = self.row.try_get(index).ok()?;
+                Some(DbValue::from_timestamp(val))
+            }
+
             _ => Some(DbValue::from_null()),
         }
     }

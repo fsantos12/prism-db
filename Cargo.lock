@@ -1436,8 +1436,10 @@ name = "simple-db-mysql"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures",
  "rust_decimal",
+ "serde_json",
  "simple-db-core",
  "sqlx",
  "thiserror",
@@ -1462,12 +1464,15 @@ name = "simple-db-postgres"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures",
  "rust_decimal",
+ "serde_json",
  "simple-db-core",
  "sqlx",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

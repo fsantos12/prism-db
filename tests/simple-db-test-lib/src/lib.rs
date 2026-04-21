@@ -115,6 +115,16 @@ fn idx_int(row: &dyn DbRow, idx: usize) -> i64 {
     flex_i64(row.get_by_index(idx).unwrap())
 }
 
+// Reads a floating-point value from a row by index.
+// Accepts f64 (SQLite/MySQL), f32, and Decimal (Postgres NUMERIC from AVG/SUM).
+fn idx_f64(row: &dyn DbRow, idx: usize) -> f64 {
+    let v = row.get_by_index(idx).unwrap();
+    v.as_f64()
+        .or_else(|| v.as_f32().map(f64::from))
+        .or_else(|| v.as_decimal().map(|d| d.to_string().parse().unwrap()))
+        .expect("expected a float or decimal DbValue")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DB helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -613,8 +623,8 @@ fn find_aggregations_test(context: &DbContext) -> BoxFuture<'static, bool> {
         let elapsed = t.elapsed();
 
         let count:   i64 = row.get_by_index_as(0).unwrap_or(-1); // COUNT(*) → INT8 on both backends
-        let avg_age: f64 = row.get_by_index_as(1).unwrap_or(-1.0);
-        let sum_bal: f64 = row.get_by_index_as(2).unwrap_or(-1.0);
+        let avg_age: f64 = idx_f64(&*row, 1); // NUMERIC on Postgres, NEWDECIMAL on MySQL, REAL on SQLite
+        let sum_bal: f64 = idx_f64(&*row, 2); // same: depends on backend
         let min_age      = idx_int(&*row, 3); // MIN(INTEGER): INT4 on Postgres, INTEGER on SQLite
         let max_age      = idx_int(&*row, 4);
 
