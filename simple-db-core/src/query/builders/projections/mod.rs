@@ -21,8 +21,8 @@ macro_rules! macro_name {
     ( $( $method:ident ( $( $arg:expr ),* ) ),+ $(,)? ) => {
         {
             let builder = $crate::query::ProjectionBuilder::new();
-            let builder = $( builder.$method( $( $arg ),* ) ).*;
-            builder.build() 
+            $( let builder = builder.$method( $( $arg ),* ); )+
+            builder.build()
         }
     };
 }

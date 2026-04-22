@@ -21,8 +21,8 @@ macro_rules! filter {
     ( $( $method:ident ( $( $arg:expr ),* ) ),+ $(,)? ) => {
         {
             let builder = $crate::query::FilterBuilder::new();
-            let builder = $( builder.$method( $( $arg ),* ) ).*;
-            builder.build() // Returns the SmallVec<[Filter; 8]>
+            $( let builder = builder.$method( $( $arg ),* ); )+
+            builder.build()
         }
     };
 }

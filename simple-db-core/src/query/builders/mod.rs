@@ -19,6 +19,7 @@ pub use groups::{GroupBuilder, GroupDefinition};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{filter, macro_name, sort, group};
 
     // =========================================================================
     // FILTER BUILDER TESTS
@@ -26,9 +27,7 @@ mod tests {
 
     #[test]
     fn test_equality_filter() {
-        let filter = FilterBuilder::new()
-            .eq("age", 25)
-            .build();
+        let filter = filter!(eq("age", 25));
 
         assert_eq!(filter.len(), 1);
         assert!(matches!(filter[0], Filter::Eq(_, _)));
@@ -36,9 +35,7 @@ mod tests {
 
     #[test]
     fn test_inequality_filter() {
-        let filter = FilterBuilder::new()
-            .neq("status", "inactive")
-            .build();
+        let filter = filter!(neq("status", "inactive"));
 
         assert_eq!(filter.len(), 1);
         assert!(matches!(filter[0], Filter::Neq(_, _)));
@@ -46,42 +43,32 @@ mod tests {
 
     #[test]
     fn test_comparison_filters() {
-        let filters = FilterBuilder::new()
-            .lt("age", 18)
-            .lte("price", 100)
-            .gt("score", 50)
-            .gte("rating", 4)
-            .build();
+        let filters = filter!(lt("age", 18), lte("price", 100), gt("score", 50), gte("rating", 4));
 
         assert_eq!(filters.len(), 4);
     }
 
     #[test]
     fn test_null_filters() {
-        let filters = FilterBuilder::new()
-            .is_null("deleted_at")
-            .is_not_null("verified_at")
-            .build();
+        let filters = filter!(is_null("deleted_at"), is_not_null("verified_at"));
 
         assert_eq!(filters.len(), 2);
     }
 
     #[test]
     fn test_string_pattern_filters() {
-        let filters = FilterBuilder::new()
-            .starts_with("email", "@gmail")
-            .ends_with("filename", ".pdf")
-            .contains("description", "important")
-            .build();
+        let filters = filter!(
+            starts_with("email", "@gmail"),
+            ends_with("filename", ".pdf"),
+            contains("description", "important")
+        );
 
         assert_eq!(filters.len(), 3);
     }
 
     #[test]
     fn test_range_filter() {
-        let filter = FilterBuilder::new()
-            .between("age", 18, 65)
-            .build();
+        let filter = filter!(between("age", 18, 65));
 
         assert_eq!(filter.len(), 1);
         assert!(matches!(filter[0], Filter::Between(_, _)));
@@ -89,30 +76,21 @@ mod tests {
 
     #[test]
     fn test_in_filter() {
-        let statuses = vec!["active", "pending"];
-        let filter = FilterBuilder::new()
-            .is_in("status", statuses)
-            .build();
+        let filter = filter!(is_in("status", vec!["active", "pending"]));
 
         assert_eq!(filter.len(), 1);
     }
 
     #[test]
     fn test_complex_filters_with_and() {
-        let filters = FilterBuilder::new()
-            .eq("type", "user")
-            .gte("age", 18)
-            .is_not_null("email")
-            .build();
+        let filters = filter!(eq("type", "user"), gte("age", 18), is_not_null("email"));
 
         assert_eq!(filters.len(), 3);
     }
 
     #[test]
     fn test_negated_filter() {
-        let filter = FilterBuilder::new()
-            .not(FilterBuilder::new().eq("status", "deleted").build())
-            .build();
+        let filter = filter!(not(filter!(eq("status", "deleted"))));
 
         assert!(!filter.is_empty());
     }
@@ -123,87 +101,63 @@ mod tests {
 
     #[test]
     fn test_single_field_projection() {
-        let projections = ProjectionBuilder::new()
-            .field("name")
-            .build();
+        let projections = macro_name!(field("name"));
 
         assert_eq!(projections.len(), 1);
     }
 
     #[test]
     fn test_multiple_field_projection() {
-        let projections = ProjectionBuilder::new()
-            .field("id")
-            .field("name")
-            .field("email")
-            .build();
+        let projections = macro_name!(field("id"), field("name"), field("email"));
 
         assert_eq!(projections.len(), 3);
     }
 
     #[test]
     fn test_aggregation_count_all() {
-        let projections = ProjectionBuilder::new()
-            .count_all()
-            .build();
+        let projections = macro_name!(count_all());
 
         assert_eq!(projections.len(), 1);
     }
 
     #[test]
     fn test_aggregation_count() {
-        let projections = ProjectionBuilder::new()
-            .count("id")
-            .build();
+        let projections = macro_name!(count("id"));
 
         assert_eq!(projections.len(), 1);
     }
 
     #[test]
     fn test_aggregation_sum() {
-        let projections = ProjectionBuilder::new()
-            .sum("total_price")
-            .build();
+        let projections = macro_name!(sum("total_price"));
 
         assert_eq!(projections.len(), 1);
     }
 
     #[test]
     fn test_aggregation_avg() {
-        let projections = ProjectionBuilder::new()
-            .avg("rating")
-            .build();
+        let projections = macro_name!(avg("rating"));
 
         assert_eq!(projections.len(), 1);
     }
 
     #[test]
     fn test_aggregation_min_max() {
-        let projections = ProjectionBuilder::new()
-            .min("price")
-            .max("price")
-            .build();
+        let projections = macro_name!(min("price"), max("price"));
 
         assert_eq!(projections.len(), 2);
     }
 
     #[test]
     fn test_multiple_aggregates() {
-        let projections = ProjectionBuilder::new()
-            .sum("total")
-            .count_all()
-            .build();
+        let projections = macro_name!(sum("total"), count_all());
 
         assert_eq!(projections.len(), 2);
     }
 
     #[test]
     fn test_mixed_fields_and_aggregates() {
-        let projections = ProjectionBuilder::new()
-            .field("category")
-            .count_all()
-            .sum("amount")
-            .build();
+        let projections = macro_name!(field("category"), count_all(), sum("amount"));
 
         assert_eq!(projections.len(), 3);
     }
@@ -214,56 +168,42 @@ mod tests {
 
     #[test]
     fn test_ascending_sort() {
-        let sorts = SortBuilder::new()
-            .asc("name")
-            .build();
+        let sorts = sort!(asc("name"));
 
         assert_eq!(sorts.len(), 1);
     }
 
     #[test]
     fn test_descending_sort() {
-        let sorts = SortBuilder::new()
-            .desc("created_at")
-            .build();
+        let sorts = sort!(desc("created_at"));
 
         assert_eq!(sorts.len(), 1);
     }
 
     #[test]
     fn test_multiple_sorts() {
-        let sorts = SortBuilder::new()
-            .asc("category")
-            .desc("price")
-            .asc("name")
-            .build();
+        let sorts = sort!(asc("category"), desc("price"), asc("name"));
 
         assert_eq!(sorts.len(), 3);
     }
 
     #[test]
     fn test_null_ordering_asc() {
-        let sorts = SortBuilder::new()
-            .asc_nulls_first("priority")
-            .build();
+        let sorts = sort!(asc_nulls_first("priority"));
 
         assert_eq!(sorts.len(), 1);
     }
 
     #[test]
     fn test_null_ordering_desc() {
-        let sorts = SortBuilder::new()
-            .desc_nulls_last("optional_field")
-            .build();
+        let sorts = sort!(desc_nulls_last("optional_field"));
 
         assert_eq!(sorts.len(), 1);
     }
 
     #[test]
     fn test_random_sort() {
-        let sorts = SortBuilder::new()
-            .random()
-            .build();
+        let sorts = sort!(random());
 
         assert_eq!(sorts.len(), 1);
     }
@@ -274,29 +214,21 @@ mod tests {
 
     #[test]
     fn test_single_group() {
-        let groups = GroupBuilder::new()
-            .field("category")
-            .build();
+        let groups = group!("category");
 
         assert_eq!(groups.len(), 1);
     }
 
     #[test]
     fn test_multiple_groups() {
-        let groups = GroupBuilder::new()
-            .field("category")
-            .field("status")
-            .field("year")
-            .build();
+        let groups = group!("category", "status", "year");
 
         assert_eq!(groups.len(), 3);
     }
 
     #[test]
     fn test_group_with_fields_convenience() {
-        let groups = GroupBuilder::new()
-            .fields(vec!["dept", "role"])
-            .build();
+        let groups = group!("dept", "role");
 
         assert_eq!(groups.len(), 2);
     }

@@ -109,6 +109,7 @@ impl Collection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filter;
 
     #[test]
     fn test_find_query_creation() {
@@ -147,8 +148,8 @@ mod tests {
     fn test_find_query_with_filter() {
         // Test adding filter conditions
         let query = Query::find("users")
-            .filter(|b| b.eq("age", 25));
-        
+            .with_filters(filter!(eq("age", 25)));
+
         assert!(!query.filters.is_empty());
     }
 
@@ -156,9 +157,8 @@ mod tests {
     fn test_find_query_with_multiple_filters() {
         // Test multiple filter conditions (implicit AND)
         let query = Query::find("users")
-            .filter(|b| b.eq("age", 25))
-            .filter(|b| b.eq("active", true));
-        
+            .with_filters(filter!(eq("age", 25), eq("active", true)));
+
         assert_eq!(query.filters.len(), 2);
     }
 
@@ -191,12 +191,11 @@ mod tests {
                 .field("name")
                 .field("email")
             )
-            .filter(|b| b.gt("age", 18))
-            .filter(|b| b.eq("active", true))
+            .with_filters(filter!(gt("age", 18), eq("active", true)))
             .order_by(|b| b.desc("created_at"))
             .limit(50)
             .offset(0);
-        
+
         assert_eq!(query.projections.len(), 3);
         assert_eq!(query.filters.len(), 2);
         assert!(!query.sorts.is_empty());
@@ -254,8 +253,8 @@ mod tests {
         // Test updating with WHERE conditions
         let query = Query::update("users")
             .set("email", "newemail@example.com")
-            .filter(|b| b.eq("id", 1));
-        
+            .with_filters(filter!(eq("id", 1)));
+
         assert!(!query.updates.is_empty());
         assert!(!query.filters.is_empty());
     }
@@ -281,8 +280,8 @@ mod tests {
     fn test_delete_query_with_filter() {
         // Test deleting with WHERE conditions
         let query = Query::delete("users")
-            .filter(|b| b.eq("id", 1));
-        
+            .with_filters(filter!(eq("id", 1)));
+
         assert!(!query.filters.is_empty());
     }
 
@@ -290,9 +289,8 @@ mod tests {
     fn test_delete_query_with_multiple_filters() {
         // Test deleting with multiple conditions
         let query = Query::delete("users")
-            .filter(|b| b.lt("age", 18))
-            .filter(|b| b.eq("archived", true));
-        
+            .with_filters(filter!(lt("age", 18), eq("archived", true)));
+
         assert_eq!(query.filters.len(), 2);
     }
 }

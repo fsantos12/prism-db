@@ -21,8 +21,8 @@ macro_rules! sort {
     ( $( $method:ident ( $( $arg:expr ),* ) ),+ $(,)? ) => {
         {
             let builder = $crate::query::SortBuilder::new();
-            let builder = $( builder.$method( $( $arg ),* ) ).*;
-            builder.build() 
+            $( let builder = builder.$method( $( $arg ),* ); )+
+            builder.build()
         }
     };
 }
