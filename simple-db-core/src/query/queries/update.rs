@@ -9,11 +9,14 @@ use crate::{query::{FilterBuilder, FilterDefinition}, types::DbValue};
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use simple_db_core::query::Query;
+/// use simple_db_core::filter;
+///
 /// let query = Query::update("users")
 ///     .set("email", "newemail@example.com")
 ///     .set("updated_at", "2024-04-13")
-///     .filter(filter!(eq("id", 42)));
+///     .filter(filter!(eq("id", 42i32)));
 /// ```
 ///
 /// # Safety Note

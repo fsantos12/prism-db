@@ -32,3 +32,5 @@ pub mod query;
 pub mod types;
 
 pub use context::DbContext;
+pub use types::{DbValue, DbRow, DbRowExt, DbCursor, DbError, DbResult};
+pub use query::{Filter, FilterBuilder};

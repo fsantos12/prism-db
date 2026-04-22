@@ -5,13 +5,14 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use simple_db_query::Query;
+//! use simple_db_core::query::Query;
+//! use simple_db_core::{filter, project, sort};
 //!
 //! // SELECT with filters, sorts, and pagination
 //! let q = Query::find("users")
-//!     .project(|b| b.field("name").field("email"))
-//!     .filter(|b| b.gt("age", 18i32))
-//!     .order_by(|b| b.asc("name"))
+//!     .project(project!(field("name"), field("email")))
+//!     .filter(filter!(gt("age", 18i32)))
+//!     .order_by(sort!(asc("name")))
 //!     .limit(10);
 //!
 //! // INSERT
@@ -21,11 +22,11 @@
 //! // UPDATE
 //! let q = Query::update("users")
 //!     .set("active", false)
-//!     .filter(|b| b.lt("last_login_days", 90i32));
+//!     .filter(filter!(lt("last_login_days", 90i32)));
 //!
 //! // DELETE
 //! let q = Query::delete("users")
-//!     .filter(|b| b.eq("archived", true));
+//!     .filter(filter!(eq("archived", true)));
 //! ```
 //!
 //! ## Modules

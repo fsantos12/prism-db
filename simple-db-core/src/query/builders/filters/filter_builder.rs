@@ -25,7 +25,7 @@ use crate::{query::builders::{FilterDefinition, filters::Filter}, types::DbValue
 ///
 /// // Logical grouping
 /// let filters = FilterBuilder::new()
-///     .or(|b| b.eq("role", "admin").eq("role", "moderator"))
+///     .or(FilterBuilder::new().eq("role", "admin").eq("role", "moderator").build())
 ///     .build();
 ///
 /// assert_eq!(filters.len(), 1);

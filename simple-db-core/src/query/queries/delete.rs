@@ -8,9 +8,12 @@ use crate::query::{FilterBuilder, FilterDefinition};
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use simple_db_core::query::Query;
+/// use simple_db_core::filter;
+///
 /// let query = Query::delete("users")
-///     .filter(filter!(eq("id", 42)));
+///     .filter(filter!(eq("id", 42i32)));
 /// ```
 ///
 /// # Safety Note

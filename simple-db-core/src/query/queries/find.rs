@@ -13,10 +13,13 @@ use crate::query::{FilterBuilder, FilterDefinition, GroupBuilder, GroupDefinitio
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use simple_db_core::query::Query;
+/// use simple_db_core::{filter, project, sort};
+///
 /// let query = Query::find("orders")
 ///     .project(project!(field("customer_id"), sum("total"), count_all()))
-///     .filter(filter!(gte("total", 100.0), eq("status", "completed")))
+///     .filter(filter!(gte("total", 100.0f64), eq("status", "completed")))
 ///     .order_by(sort!(desc("total")))
 ///     .limit(10);
 /// ```

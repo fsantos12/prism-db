@@ -31,7 +31,8 @@ pub use delete::DeleteQuery;
 /// # Examples
 ///
 /// ```rust
-/// use simple_db_query::Query;
+/// use simple_db_core::query::Query;
+/// use simple_db_core::{filter, project, sort};
 ///
 /// // SELECT query
 /// let q = Query::find("users")

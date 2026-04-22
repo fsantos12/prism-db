@@ -238,7 +238,7 @@ fn bench_orm_update(context: &DbContext) -> BoxFuture<'static, bool> {
         let t = Instant::now();
 
         let ids: Vec<DbValue> = (0..50).map(|i| DbValue::from_i64(20000 + i)).collect();
-        let mut entities = UserEntity::find(&ctx, filter!(is_in("id", ids))).await.unwrap();
+        let mut entities = UserEntity::find(&ctx, |q| {q.filter(filter!(is_in("id", ids)))}).await.unwrap();
         for (i, entity) in entities.iter_mut().enumerate() {
             entity.get_mut().set_email(format!("updated{}@example.com", i));
         }
@@ -266,7 +266,7 @@ fn bench_orm_delete(context: &DbContext) -> BoxFuture<'static, bool> {
         let t = Instant::now();
 
         let ids: Vec<DbValue> = (50..100).map(|i| DbValue::from_i64(20000 + i)).collect();
-        let mut entities = UserEntity::find(&ctx, filter!(is_in("id", ids))).await.unwrap();
+        let mut entities = UserEntity::find(&ctx, |q| q.filter(filter!(is_in("id", ids)))).await.unwrap();
 
         let delete_start = Instant::now();
         let tx = ctx.begin().await.unwrap();
@@ -298,7 +298,7 @@ fn bench_orm_find_tracked(context: &DbContext) -> BoxFuture<'static, bool> {
         let _ = ctx.insert(Query::insert("users").bulk_insert(seed_rows)).await;
 
         let find_start = Instant::now();
-        let entities = UserEntity::find(&ctx, filter!(gte("id", 0))).await.unwrap();
+        let entities = UserEntity::find(&ctx, |q| q.filter(filter!(gte("id", 0)))).await.unwrap();
         let find_time = find_start.elapsed();
         let count = entities.len();
 

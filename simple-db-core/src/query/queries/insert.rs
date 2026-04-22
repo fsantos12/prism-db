@@ -9,14 +9,12 @@ use crate::types::DbValue;
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// // Insert a single row
+/// ```rust
+/// use simple_db_core::query::Query;
+///
+/// // Insert a single row (homogeneous value types)
 /// let query = Query::insert("users")
-///     .insert(vec![
-///         ("name", "Alice"),
-///         ("email", "alice@example.com"),
-///         ("age", 30i32),
-///     ]);
+///     .insert(vec![("name", "Alice"), ("email", "alice@example.com")]);
 ///
 /// // Bulk insert multiple rows
 /// let query = Query::insert("users")
