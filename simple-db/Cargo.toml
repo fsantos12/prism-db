@@ -5,14 +5,15 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-orm      = ["dep:simple-db-orm"]
+orm      = ["dep:simple-db-orm", "dep:simple-db-macros"]
 sqlite   = ["dep:simple-db-sqlite"]
 postgres = ["dep:simple-db-postgres"]
 mysql    = ["dep:simple-db-mysql"]
 
 [dependencies]
-simple-db-core = { workspace = true }
-simple-db-orm  = { workspace = true, optional = true }
+simple-db-core   = { workspace = true }
+simple-db-orm    = { workspace = true, optional = true }
+simple-db-macros = { workspace = true, optional = true }
 
 simple-db-sqlite   = { workspace = true, optional = true }
 simple-db-postgres = { workspace = true, optional = true }

@@ -30,6 +30,9 @@ pub use simple_db_core::{filter, project, sort, group};
 #[cfg(feature = "orm")]
 pub use simple_db_orm::{DbEntity, DbEntityTrait, TrackingState};
 
+#[cfg(feature = "orm")]
+pub use simple_db_macros::DbEntity;
+
 #[cfg(feature = "sqlite")]
 pub use simple_db_sqlite::{SqliteDriver, SqlitePool, SqlitePoolOptions, SqliteTransaction};
 

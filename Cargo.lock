@@ -1406,6 +1406,7 @@ name = "simple-db"
 version = "0.1.0"
 dependencies = [
  "simple-db-core",
+ "simple-db-macros",
  "simple-db-mysql",
  "simple-db-orm",
  "simple-db-postgres",
@@ -1431,6 +1432,11 @@ dependencies = [
 [[package]]
 name = "simple-db-macros"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "simple-db-mysql"
@@ -1518,6 +1524,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "simple-db",
+ "simple-db-macros",
  "tokio",
 ]
 
