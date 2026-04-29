@@ -7,11 +7,18 @@ use tokio::sync::Mutex;
 
 use crate::{driver::executor::PostgresExecutor, queries::{find::PostgresPreparedFindQuery, insert::PostgresPreparedInsertQuery, update::PostgresPreparedUpdateQuery}};
 
+/// A PostgreSQL database transaction.
+///
+/// Represents an active PostgreSQL transaction that can be committed or rolled back.
+/// All queries executed within a transaction use the transaction's connection rather
+/// than the pool, ensuring isolation.
 pub struct PostgresTransaction {
+    /// The executor wrapping the sqlx transaction.
     executor: PostgresExecutor,
 }
 
 impl PostgresTransaction {
+    /// Creates a new transaction from an sqlx `Transaction<Postgres>`.
     pub fn new(tx: Transaction<'static, Postgres>) -> Self {
         Self {
             executor: PostgresExecutor::Transaction(Arc::new(Mutex::new(Some(tx)))),

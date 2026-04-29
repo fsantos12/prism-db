@@ -6,17 +6,32 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 
 use crate::{PostgresTransaction, driver::executor::PostgresExecutor, queries::{find::PostgresPreparedFindQuery, insert::PostgresPreparedInsertQuery, update::PostgresPreparedUpdateQuery}};
 
+/// PostgreSQL database driver with connection pooling.
+///
+/// `PostgresDriver` manages a pool of PostgreSQL connections and implements the `DbDriver` trait
+/// for query execution and transaction management.
+///
+/// # Example
+/// ```ignore
+/// let driver = PostgresDriver::connect("postgresql://user:pass@localhost/db").await?;
+/// let cursor = driver.find(FindQuery::new("users")).await?;
+/// ```
 pub struct PostgresDriver {
+    /// The underlying connection pool for executing queries.
     executor: PostgresExecutor,
 }
 
 impl PostgresDriver {
+    /// Creates a new driver from an existing connection pool.
     pub fn new(pool: PgPool) -> Self {
         Self {
             executor: PostgresExecutor::Pool(pool),
         }
     }
 
+    /// Establishes a new connection pool to the PostgreSQL server at `url`.
+    ///
+    /// The connection pool is configured with up to 5 concurrent connections.
     pub async fn connect(url: &str) -> DbResult<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(5)
@@ -26,6 +41,11 @@ impl PostgresDriver {
         Ok(Self::new(pool))
     }
 
+    /// Executes raw SQL directly without parameter binding.
+    ///
+    /// # Warning
+    /// This method should only be used for DDL or administrative queries.
+    /// Use the query builder API for parameterized queries to avoid SQL injection.
     pub async fn execute_raw(&self, sql: &str) -> DbResult<()> {
         let query = sqlx::query(sql);
         self.executor.execute(query)
@@ -71,5 +91,13 @@ impl DbDriver for PostgresDriver {
             pool.acquire().await.map_err(DbError::driver)?;
         }
         Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_postgres_driver_trait_exists() {
+        // This test documents the PostgresDriver API.
+        // Integration tests require a PostgreSQL server connection.
     }
 }

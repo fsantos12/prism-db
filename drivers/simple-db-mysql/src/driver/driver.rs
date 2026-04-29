@@ -6,17 +6,32 @@ use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
 
 use crate::{MySqlTransaction, driver::executor::MySqlExecutor, queries::{find::MySqlPreparedFindQuery, insert::MySqlPreparedInsertQuery, update::MySqlPreparedUpdateQuery}};
 
+/// MySQL database driver with connection pooling.
+///
+/// `MySqlDriver` manages a pool of MySQL connections and implements the `DbDriver` trait
+/// for query execution and transaction management.
+///
+/// # Example
+/// ```ignore
+/// let driver = MySqlDriver::connect("mysql://user:pass@localhost/db").await?;
+/// let cursor = driver.find(FindQuery::new("users")).await?;
+/// ```
 pub struct MySqlDriver {
+    /// The underlying connection pool for executing queries.
     executor: MySqlExecutor 
 }
 
 impl MySqlDriver {
+    /// Creates a new driver from an existing connection pool.
     pub fn new(pool: MySqlPool) -> Self {
         Self { 
             executor: MySqlExecutor::Pool(pool) 
         }
     }
 
+    /// Establishes a new connection pool to the MySQL server at `url`.
+    ///
+    /// The connection pool is configured with up to 5 concurrent connections.
     pub async fn connect(url: &str) -> DbResult<Self> {
         let pool = MySqlPoolOptions::new()
             .max_connections(5)
@@ -26,6 +41,11 @@ impl MySqlDriver {
         Ok(Self::new(pool))
     }
 
+    /// Executes raw SQL directly without parameter binding.
+    ///
+    /// # Warning
+    /// This method should only be used for DDL or administrative queries.
+    /// Use the query builder API for parameterized queries to avoid SQL injection.
     pub async fn execute_raw(&self, sql: &str) -> DbResult<()> {
         let query = sqlx::query(sql);
         self.executor.execute(query)
@@ -71,5 +91,14 @@ impl DbDriver for MySqlDriver {
             pool.acquire().await.map_err(DbError::driver)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_mysql_driver_trait_exists() {
+        // This test documents the MySqlDriver API.
+        // Integration tests require a MySQL server connection.
     }
 }

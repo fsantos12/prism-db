@@ -7,11 +7,18 @@ use tokio::sync::Mutex;
 
 use crate::{driver::executor::MySqlExecutor, queries::{find::MySqlPreparedFindQuery, insert::MySqlPreparedInsertQuery, update::MySqlPreparedUpdateQuery}};
 
+/// A MySQL database transaction.
+///
+/// Represents an active MySQL transaction that can be committed or rolled back.
+/// All queries executed within a transaction use the transaction's connection rather
+/// than the pool, ensuring isolation.
 pub struct MySqlTransaction {
+    /// The executor wrapping the sqlx transaction.
     executor: MySqlExecutor,
 }
 
 impl MySqlTransaction {
+    /// Creates a new transaction from an sqlx `Transaction<MySql>`.
     pub fn new(tx: Transaction<'static, MySql>) -> Self {
         Self {
             executor: MySqlExecutor::Transaction(Arc::new(Mutex::new(Some(tx)))),

@@ -1,5 +1,10 @@
 use simple_db_core::{query::{Filter, FilterDefinition}, types::DbValue};
 
+/// Compiles a [`FilterDefinition`] into a MySQL `WHERE` clause fragment and its bound values.
+///
+/// Returns an empty string and no values if `filters` is empty.
+/// Multiple top-level filters are combined with `AND`.
+/// MySQL uses positional `?` placeholders.
 pub(crate) fn compile_filters(filters: &FilterDefinition) -> (String, Vec<DbValue>) {
     if filters.is_empty() { return ("".to_string(), vec![]) }
 
@@ -16,6 +21,7 @@ pub(crate) fn compile_filters(filters: &FilterDefinition) -> (String, Vec<DbValu
     (final_sql, values)
 }
 
+/// Compiles a slice of filters joined by `operator` and wrapped in parentheses.
 fn compile_logical_filters(filters: &[Filter], operator: &str) -> (String, Vec<DbValue>) {
     if filters.is_empty() { return ("".to_string(), vec![]) }
 
@@ -32,6 +38,7 @@ fn compile_logical_filters(filters: &[Filter], operator: &str) -> (String, Vec<D
     (final_sql, values)
 }
 
+/// Compiles a single [`Filter`] variant into a SQL fragment and its bound values.
 fn compile_filter(filter: &Filter) -> (String, Vec<DbValue>) {
     match filter {
         Filter::IsNull(smol_str) => (format!("{} IS NULL", smol_str), vec![]),
@@ -79,5 +86,158 @@ fn compile_filter(filter: &Filter) -> (String, Vec<DbValue>) {
             let (sql, params) = compile_filter(filter);
             (format!("NOT ({})", sql), params)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use simple_db_core::query::FilterBuilder;
+    use super::*;
+
+    fn build(f: impl FnOnce(FilterBuilder) -> FilterBuilder) -> (String, Vec<DbValue>) {
+        let def = f(FilterBuilder::new()).build();
+        compile_filters(&def)
+    }
+
+    #[test]
+    fn empty_returns_empty() {
+        let (sql, vals) = compile_filters(&Default::default());
+        assert_eq!(sql, "");
+        assert!(vals.is_empty());
+    }
+
+    #[test]
+    fn is_null() {
+        let (sql, vals) = build(|b| b.is_null("col"));
+        assert_eq!(sql, "col IS NULL");
+        assert!(vals.is_empty());
+    }
+
+    #[test]
+    fn is_not_null() {
+        let (sql, vals) = build(|b| b.is_not_null("col"));
+        assert_eq!(sql, "col IS NOT NULL");
+        assert!(vals.is_empty());
+    }
+
+    #[test]
+    fn eq() {
+        let (sql, vals) = build(|b| b.eq("age", 30i32));
+        assert_eq!(sql, "age = ?");
+        assert_eq!(vals.len(), 1);
+    }
+
+    #[test]
+    fn neq() {
+        let (sql, _) = build(|b| b.neq("status", "deleted"));
+        assert_eq!(sql, "status != ?");
+    }
+
+    #[test]
+    fn lt_lte_gt_gte() {
+        let (sql, _) = build(|b| b.lt("score", 100i32));
+        assert_eq!(sql, "score < ?");
+        let (sql, _) = build(|b| b.lte("score", 100i32));
+        assert_eq!(sql, "score <= ?");
+        let (sql, _) = build(|b| b.gt("score", 0i32));
+        assert_eq!(sql, "score > ?");
+        let (sql, _) = build(|b| b.gte("score", 0i32));
+        assert_eq!(sql, "score >= ?");
+    }
+
+    #[test]
+    fn starts_with() {
+        let (sql, vals) = build(|b| b.starts_with("name", "Al"));
+        assert_eq!(sql, "name LIKE ? || '%'");
+        assert_eq!(vals.len(), 1);
+    }
+
+    #[test]
+    fn ends_with() {
+        let (sql, _) = build(|b| b.ends_with("email", ".com"));
+        assert_eq!(sql, "email LIKE '%' || ?");
+    }
+
+    #[test]
+    fn contains() {
+        let (sql, _) = build(|b| b.contains("bio", "rust"));
+        assert_eq!(sql, "bio LIKE '%' || ? || '%'");
+    }
+
+    #[test]
+    fn not_contains() {
+        let (sql, _) = build(|b| b.not_contains("bio", "spam"));
+        assert_eq!(sql, "bio NOT LIKE '%' || ? || '%'");
+    }
+
+    #[test]
+    fn regex() {
+        let (sql, vals) = build(|b| b.regex("email", r"@example\.com"));
+        assert_eq!(sql, "email REGEXP ?");
+        assert_eq!(vals.len(), 1);
+    }
+
+    #[test]
+    fn between() {
+        let (sql, vals) = build(|b| b.between("age", 18i32, 65i32));
+        assert_eq!(sql, "age BETWEEN ? AND ?");
+        assert_eq!(vals.len(), 2);
+    }
+
+    #[test]
+    fn not_between() {
+        let (sql, _) = build(|b| b.not_between("score", 0i32, 10i32));
+        assert_eq!(sql, "score NOT BETWEEN ? AND ?");
+    }
+
+    #[test]
+    fn is_in_with_values() {
+        let (sql, vals) = build(|b| b.is_in("id", vec![1i32, 2i32, 3i32]));
+        assert_eq!(sql, "id IN (?, ?, ?)");
+        assert_eq!(vals.len(), 3);
+    }
+
+    #[test]
+    fn is_in_empty_returns_always_false() {
+        let (sql, vals) = build(|b| b.is_in("id", Vec::<i32>::new()));
+        assert_eq!(sql, "1=0");
+        assert!(vals.is_empty());
+    }
+
+    #[test]
+    fn not_in_empty_returns_always_true() {
+        let (sql, _) = build(|b| b.not_in("id", Vec::<i32>::new()));
+        assert_eq!(sql, "1=1");
+    }
+
+    #[test]
+    fn and_logical_group() {
+        let (sql, vals) = build(|b| b.and([
+            Filter::Eq("a".into(), 1i32.into()),
+            Filter::Eq("b".into(), 2i32.into()),
+        ]));
+        assert_eq!(sql, "(a = ? AND b = ?)");
+        assert_eq!(vals.len(), 2);
+    }
+
+    #[test]
+    fn or_logical_group() {
+        let (sql, _) = build(|b| b.or([
+            Filter::IsNull("x".into()),
+            Filter::IsNull("y".into()),
+        ]));
+        assert_eq!(sql, "(x IS NULL OR y IS NULL)");
+    }
+
+    #[test]
+    fn not_wraps_expression() {
+        let (sql, _) = build(|b| b.not([Filter::IsNull("x".into())]));
+        assert_eq!(sql, "NOT (x IS NULL)");
+    }
+
+    #[test]
+    fn multiple_top_level_filters_joined_with_and() {
+        let (sql, _) = build(|b| b.is_null("a").is_null("b"));
+        assert_eq!(sql, "a IS NULL AND b IS NULL");
     }
 }

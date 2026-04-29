@@ -1,3 +1,5 @@
+//! MySQL query execution modules for CRUD operations.
+
 pub mod binders;
 pub mod find;
 pub mod insert;

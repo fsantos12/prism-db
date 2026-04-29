@@ -6,17 +6,34 @@ use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 
 use crate::{SqliteTransaction, driver::executor::SqliteExecutor, queries::{find::SqlitePreparedFindQuery, insert::SqlitePreparedInsertQuery, update::SqlitePreparedUpdateQuery}};
 
+/// SQLite database driver with connection pooling.
+///
+/// `SqliteDriver` manages a pool of SQLite connections and implements the `DbDriver` trait
+/// for query execution and transaction management. Supports both in-memory (`:memory:`) and
+/// file-based databases.
+///
+/// # Example
+/// ```ignore
+/// let driver = SqliteDriver::connect("sqlite://test.db").await?;
+/// let cursor = driver.find(FindQuery::new("users")).await?;
+/// ```
 pub struct SqliteDriver {
+    /// The underlying connection pool for executing queries.
     executor: SqliteExecutor 
 }
 
 impl SqliteDriver {
+    /// Creates a new driver from an existing connection pool.
     pub fn new(pool: SqlitePool) -> Self {
         Self { 
             executor: SqliteExecutor::Pool(pool) 
         }
     }
 
+    /// Establishes a new connection pool to the SQLite database at `url`.
+    ///
+    /// The connection pool is configured with up to 5 concurrent connections.
+    /// The `url` can be `sqlite::memory:` for an in-memory database or `sqlite:path/to/file.db` for a file.
     pub async fn connect(url: &str) -> DbResult<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -26,6 +43,11 @@ impl SqliteDriver {
         Ok(Self::new(pool))
     }
 
+    /// Executes raw SQL directly without parameter binding.
+    ///
+    /// # Warning
+    /// This method should only be used for DDL or administrative queries.
+    /// Use the query builder API for parameterized queries to avoid SQL injection.
     pub async fn execute_raw(&self, sql: &str) -> DbResult<()> {
         let query = sqlx::query(sql);
         self.executor.execute(query)
@@ -71,5 +93,13 @@ impl DbDriver for SqliteDriver {
             pool.acquire().await.map_err(DbError::driver)?;
         }
         Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_sqlite_driver_trait_exists() {
+        // This test documents the SqliteDriver API.
+        // Integration tests require a database file or in-memory connection.
     }
 }

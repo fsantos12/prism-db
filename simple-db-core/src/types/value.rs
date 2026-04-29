@@ -1,3 +1,9 @@
+//! Tagged-pointer value type for representing any supported database column value in a single word.
+//!
+//! The high 16 bits of the word encode the type tag; the low 48 bits (on x86_64) hold either
+//! the value itself (for types that fit inline) or a heap pointer. This avoids a `Box<dyn Any>`
+//! allocation for every small scalar and keeps the type check to a single mask operation.
+
 use std::{any::Any, ptr::NonNull};
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -50,6 +56,10 @@ const TYPE_EXTENSION:  Word = TYPE_MASK;
 // ========================================
 // 1. Serialization (Rust -> DB)
 // ========================================
+
+/// Converts a Rust value into a [`DbValue`].
+///
+/// Implement this to make a type usable as a query parameter or column value.
 pub trait ToDbValue {
     fn to_db_value(&self) -> DbValue;
 }
@@ -57,29 +67,43 @@ pub trait ToDbValue {
 // ========================================
 // 2. Deserialization (DB -> Rust)
 // ========================================
+
+/// Extracts a Rust value from a [`DbValue`].
+///
+/// Three levels of extraction are provided:
+/// - [`matches_type`](FromDbValue::matches_type) — zero-cost tag check only
+/// - [`from_exact`](FromDbValue::from_exact) — strict: fails if the stored type doesn't match exactly
+/// - [`from_cast`](FromDbValue::from_cast) — loose: may parse strings, widen integers, etc.
 pub trait FromDbValue: Sized {
-    /// Extremely fast, zero-overhead exact type check
+    /// Returns `true` if the stored type tag matches `Self` exactly.
     fn matches_type(value: &DbValue) -> bool;
 
-    /// Strict extraction. Returns None if the tag doesn't match perfectly.
+    /// Extracts `Self` without any coercion. Returns `None` on type mismatch.
     fn from_exact(value: &DbValue) -> Option<Self>;
 
-    /// Loose extraction. Parses strings, checks integer bounds, etc.
+    /// Extracts `Self` with best-effort coercion (string parsing, integer widening, etc.).
     fn from_cast(value: &DbValue) -> Option<Self>;
 }
 
 // ========================================
 // 3. The Custom Extension Trait
 // ========================================
+
+/// Marker trait for user-defined types that can be stored as a [`DbValue`].
+///
+/// Implement this alongside [`ToDbValue`] / [`FromDbValue`] to add support for
+/// application-specific column types (e.g. enums, newtype wrappers).
 pub trait CustomDbValue: Send + Sync + 'static {
-    // Required so the database can clone rows in memory
+    /// Clones the value into a new `Box<dyn CustomDbValue>` so rows can be cloned in memory.
     fn clone_box(&self) -> Box<dyn CustomDbValue>;
 
-    // Required for runtime downcasting back to the user's struct
+    /// Returns a `&dyn Any` to enable runtime downcasting back to the concrete type.
     fn as_any(&self) -> &dyn Any;
 
+    /// Dynamic equality check used by [`DbValue`]'s `PartialEq` implementation.
     fn dyn_eq(&self, other: &dyn CustomDbValue) -> bool;
 
+    /// Dynamic ordering check used by [`DbValue`]'s `PartialOrd` implementation.
     fn dyn_partial_cmp(&self, other: &dyn CustomDbValue) -> Option<std::cmp::Ordering>;
 }
 
@@ -90,6 +114,15 @@ fn make_tag(category: Word, r#type: Word) -> Word {
     category | r#type
 }
 
+/// A type-tagged database column value stored in a single machine word.
+///
+/// Small scalars (`bool`, `i8`–`i32`, small `i64`/`u64`, `f32`, `char`) are stored entirely
+/// inline — no heap allocation. Larger types (`String`, `Vec<u8>`, temporal types, etc.) are
+/// heap-allocated and the pointer is stored in the payload field.
+///
+/// # Type Safety
+/// Every extraction via [`get`](DbValue::get) or [`cast`](DbValue::cast) is guarded by a tag
+/// check; an incorrect type always returns `None` rather than causing undefined behaviour.
 #[derive(Debug)]
 pub struct DbValue(Word);
 
@@ -133,6 +166,8 @@ impl DbValue {
         self.0 & PAYLOAD_MASK
     }
 
+    /// Reinterprets the 48-bit payload as a sign-extended `i64`.
+    /// Used for `i64` values stored inline when they fit in 48 bits.
     #[inline]
     fn payload_to_i64_i48(&self) -> i64 {
         let p = self.payload();
@@ -175,11 +210,14 @@ impl DbValue {
     // ========================================
     // Nullable Types
     // ========================================
+
+    /// Creates a `NULL` database value.
     #[inline]
     pub fn from_null() -> Self {
         Self::from_tag_and_payload(make_tag(CATEGORY_INLINE, TYPE_NULL), 0)
     }
 
+    /// Returns `true` if this value is `NULL`.
     #[inline]
     pub fn is_null(&self) -> bool {
         self.r#type() == TYPE_NULL
@@ -188,16 +226,20 @@ impl DbValue {
     // ========================================
     // Generic Conversions
     // ========================================
+
+    /// Returns `true` if the stored type exactly matches `T`.
     #[inline]
     pub fn is<T: FromDbValue>(&self) -> bool {
         T::matches_type(self)
     }
 
+    /// Extracts a `T` without coercion, or `None` on type mismatch.
     #[inline]
     pub fn get<T: FromDbValue>(&self) -> Option<T> {
         T::from_exact(self)
     }
 
+    /// Extracts a `T` with best-effort coercion, or `None` if conversion is impossible.
     #[inline]
     pub fn cast<T: FromDbValue>(&self) -> Option<T> {
         T::from_cast(self)
@@ -233,8 +275,8 @@ impl Drop for DbValue {
                 TYPE_BYTES => { let _ = Box::from_raw(ptr as *mut Vec<u8>); },
                 TYPE_UUID => { let _ = Box::from_raw(ptr as *mut Uuid); },
                 TYPE_JSON => { let _ = Box::from_raw(ptr as *mut JsonValue); },
-                TYPE_EXTENSION => { 
-                    let _ = Box::from_raw(ptr as *mut Box<dyn CustomDbValue>); 
+                TYPE_EXTENSION => {
+                    let _ = Box::from_raw(ptr as *mut Box<dyn CustomDbValue>);
                 },
                 _ => {}
             }
@@ -262,7 +304,7 @@ impl Clone for DbValue {
             TYPE_JSON => DbValue::from_tag_and_boxed(make_tag(CATEGORY_BOXED, TYPE_JSON), unsafe { self.payload_to_ref::<JsonValue>() }.clone()),
             TYPE_EXTENSION => {
                 let original = unsafe { self.payload_to_ref::<Box<dyn CustomDbValue>>() };
-                let cloned_trait = original.clone_box(); 
+                let cloned_trait = original.clone_box();
                 DbValue::from_custom(cloned_trait)
             }
             _ => Self(self.0),
@@ -383,7 +425,8 @@ impl ToDbValue for i64 {
         let max_inline = (1i64 << (PAYLOAD_BITS - 1)) - 1;
 
         if (min_inline..=max_inline).contains(self) {
-            DbValue::from_tag_and_payload(make_tag(CATEGORY_INLINE, TYPE_I64), *self as Word)
+            // Mask to payload width so the tag bits are clean for negative values
+            DbValue::from_tag_and_payload(make_tag(CATEGORY_INLINE, TYPE_I64), (*self as Word) & PAYLOAD_MASK)
         } else {
             DbValue::from_tag_and_boxed(make_tag(CATEGORY_BOXED, TYPE_I64), *self)
         }
@@ -396,7 +439,8 @@ impl ToDbValue for i128 {
         let max_inline = (1i128 << (PAYLOAD_BITS - 1)) - 1;
 
         if (min_inline..=max_inline).contains(self) {
-            DbValue::from_tag_and_payload(make_tag(CATEGORY_INLINE, TYPE_I128), *self as Word)
+            // Mask to payload width so the tag bits are clean for negative values
+            DbValue::from_tag_and_payload(make_tag(CATEGORY_INLINE, TYPE_I128), (*self as Word) & PAYLOAD_MASK)
         } else {
             DbValue::from_tag_and_boxed(make_tag(CATEGORY_BOXED, TYPE_I128), *self)
         }
@@ -633,7 +677,9 @@ impl FromDbValue for i128 {
         if !Self::matches_type(value) {
             None
         } else if value.category() == CATEGORY_INLINE {
-            Some(value.payload() as i128)
+            // Inline i128 values fit in the same signed 47-bit range as inline i64;
+            // reuse the sign-extension helper and widen to i128.
+            Some(value.payload_to_i64_i48() as i128)
         } else {
             unsafe { Some(*value.payload_to_ref::<i128>()) }
         }
@@ -914,5 +960,222 @@ impl<T: CustomDbValue + Clone> FromDbValue for T {
     #[inline]
     fn from_cast(value: &DbValue) -> Option<Self> {
         Self::from_exact(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn null_roundtrip() {
+        let v = DbValue::from_null();
+        assert!(v.is_null());
+        assert!(!v.is::<bool>());
+        assert_eq!(v.get::<bool>(), None);
+        assert_eq!(DbValue::from_null(), DbValue::from_null());
+    }
+
+    #[test]
+    fn bool_roundtrip() {
+        let t = true.to_db_value();
+        let f = false.to_db_value();
+        assert_eq!(t.get::<bool>(), Some(true));
+        assert_eq!(f.get::<bool>(), Some(false));
+        assert!(t.is::<bool>());
+        assert!(!t.is_null());
+    }
+
+    #[test]
+    fn i8_roundtrip() {
+        assert_eq!(0i8.to_db_value().get::<i8>(), Some(0i8));
+        assert_eq!(127i8.to_db_value().get::<i8>(), Some(127i8));
+        assert_eq!((-128i8).to_db_value().get::<i8>(), Some(-128i8));
+    }
+
+    #[test]
+    fn i16_roundtrip() {
+        assert_eq!(1000i16.to_db_value().get::<i16>(), Some(1000i16));
+        assert_eq!((-30000i16).to_db_value().get::<i16>(), Some(-30000i16));
+        assert_eq!(i16::MAX.to_db_value().get::<i16>(), Some(i16::MAX));
+        assert_eq!(i16::MIN.to_db_value().get::<i16>(), Some(i16::MIN));
+    }
+
+    #[test]
+    fn i32_roundtrip() {
+        assert_eq!(1_000_000i32.to_db_value().get::<i32>(), Some(1_000_000i32));
+        assert_eq!((-1_000_000i32).to_db_value().get::<i32>(), Some(-1_000_000i32));
+        assert_eq!(i32::MAX.to_db_value().get::<i32>(), Some(i32::MAX));
+        assert_eq!(i32::MIN.to_db_value().get::<i32>(), Some(i32::MIN));
+    }
+
+    #[test]
+    fn i64_roundtrip_inline_values() {
+        // All values within the 47-bit signed inline range (no heap allocation needed)
+        assert_eq!(0i64.to_db_value().get::<i64>(), Some(0i64));
+        assert_eq!(42i64.to_db_value().get::<i64>(), Some(42i64));
+        assert_eq!((-42i64).to_db_value().get::<i64>(), Some(-42i64));
+        assert_eq!(1_000_000_000i64.to_db_value().get::<i64>(), Some(1_000_000_000i64));
+        assert_eq!((-1_000_000_000i64).to_db_value().get::<i64>(), Some(-1_000_000_000i64));
+        // Boundary of inline range (2^47 - 1 and -(2^47))
+        let max_inline: i64 = (1i64 << 47) - 1;
+        let min_inline: i64 = -(1i64 << 47);
+        assert_eq!(max_inline.to_db_value().get::<i64>(), Some(max_inline));
+        assert_eq!(min_inline.to_db_value().get::<i64>(), Some(min_inline));
+    }
+
+    #[test]
+    fn i128_roundtrip() {
+        // Inline path (small values within the 47-bit signed range)
+        assert_eq!(42i128.to_db_value().get::<i128>(), Some(42i128));
+        assert_eq!((-42i128).to_db_value().get::<i128>(), Some(-42i128));
+        assert_eq!(0i128.to_db_value().get::<i128>(), Some(0i128));
+    }
+
+    #[test]
+    fn u8_roundtrip() {
+        assert_eq!(0u8.to_db_value().get::<u8>(), Some(0u8));
+        assert_eq!(u8::MAX.to_db_value().get::<u8>(), Some(u8::MAX));
+    }
+
+    #[test]
+    fn u16_roundtrip() {
+        assert_eq!(u16::MAX.to_db_value().get::<u16>(), Some(u16::MAX));
+        assert_eq!(0u16.to_db_value().get::<u16>(), Some(0u16));
+    }
+
+    #[test]
+    fn u32_roundtrip() {
+        assert_eq!(u32::MAX.to_db_value().get::<u32>(), Some(u32::MAX));
+        assert_eq!(0u32.to_db_value().get::<u32>(), Some(0u32));
+    }
+
+    #[test]
+    fn u64_roundtrip_inline_and_boxed() {
+        assert_eq!(0u64.to_db_value().get::<u64>(), Some(0u64));
+        assert_eq!(u64::MAX.to_db_value().get::<u64>(), Some(u64::MAX));
+        assert_eq!(42u64.to_db_value().get::<u64>(), Some(42u64));
+    }
+
+    #[test]
+    fn u128_roundtrip() {
+        assert_eq!(0u128.to_db_value().get::<u128>(), Some(0u128));
+        assert_eq!(u128::MAX.to_db_value().get::<u128>(), Some(u128::MAX));
+    }
+
+    #[test]
+    fn f32_roundtrip() {
+        let v = 3.14f32;
+        let got = v.to_db_value().get::<f32>().unwrap();
+        assert!((got - v).abs() < f32::EPSILON);
+        assert_eq!(0f32.to_db_value().get::<f32>(), Some(0f32));
+    }
+
+    #[test]
+    fn f64_roundtrip() {
+        let v = std::f64::consts::PI;
+        let got = v.to_db_value().get::<f64>().unwrap();
+        assert!((got - v).abs() < f64::EPSILON);
+        assert_eq!(0f64.to_db_value().get::<f64>(), Some(0f64));
+    }
+
+    #[test]
+    fn char_roundtrip() {
+        assert_eq!('A'.to_db_value().get::<char>(), Some('A'));
+        assert_eq!('€'.to_db_value().get::<char>(), Some('€'));
+        assert_eq!('\0'.to_db_value().get::<char>(), Some('\0'));
+    }
+
+    #[test]
+    fn string_roundtrip() {
+        let s = "hello world".to_string();
+        assert_eq!(s.to_db_value().get::<String>(), Some(s));
+        assert_eq!("".to_string().to_db_value().get::<String>(), Some(String::new()));
+    }
+
+    #[test]
+    fn str_roundtrip() {
+        let v = "hello".to_db_value();
+        assert_eq!(v.get::<String>(), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn bytes_roundtrip() {
+        let bytes = vec![0u8, 1, 127, 255];
+        assert_eq!(bytes.clone().to_db_value().get::<Vec<u8>>(), Some(bytes));
+        assert_eq!(vec![].to_db_value().get::<Vec<u8>>(), Some(vec![]));
+    }
+
+    #[test]
+    fn uuid_roundtrip() {
+        let id = Uuid::nil();
+        assert_eq!(id.to_db_value().get::<Uuid>(), Some(id));
+    }
+
+    #[test]
+    fn clone_is_independent() {
+        let original = "hello".to_db_value();
+        let cloned = original.clone();
+        assert_eq!(original, cloned);
+        assert_eq!(original.get::<String>(), Some("hello".to_string()));
+        assert_eq!(cloned.get::<String>(), Some("hello".to_string()));
+
+        let n = 42i64.to_db_value();
+        let n2 = n.clone();
+        assert_eq!(n, n2);
+        assert_eq!(n2.get::<i64>(), Some(42i64));
+    }
+
+    #[test]
+    fn type_mismatch_returns_none() {
+        let v = 42i32.to_db_value();
+        assert_eq!(v.get::<i64>(), None);
+        assert_eq!(v.get::<String>(), None);
+        assert_eq!(v.get::<bool>(), None);
+        assert!(!v.is::<i64>());
+    }
+
+    #[test]
+    fn partial_eq_same_value_same_type() {
+        assert_eq!(42i32.to_db_value(), 42i32.to_db_value());
+        assert_ne!(42i32.to_db_value(), 43i32.to_db_value());
+        assert_eq!("hello".to_db_value(), "hello".to_db_value());
+        assert_ne!("hello".to_db_value(), "world".to_db_value());
+        assert_eq!(DbValue::from_null(), DbValue::from_null());
+    }
+
+    #[test]
+    fn partial_eq_different_types_always_false() {
+        // Same numeric value but different integer types must NOT be equal
+        assert_ne!(42i32.to_db_value(), 42i64.to_db_value());
+        assert_ne!(42u32.to_db_value(), 42i32.to_db_value());
+    }
+
+    #[test]
+    fn partial_ord_integers() {
+        let a = 10i32.to_db_value();
+        let b = 20i32.to_db_value();
+        assert!(a < b);
+        assert!(b > a);
+        assert_eq!(a.partial_cmp(&a), Some(std::cmp::Ordering::Equal));
+    }
+
+    #[test]
+    fn partial_ord_different_types_is_none() {
+        assert_eq!(10i32.to_db_value().partial_cmp(&10i64.to_db_value()), None);
+    }
+
+    #[test]
+    fn from_into_conversion() {
+        let v: DbValue = 99i32.into();
+        assert_eq!(v.get::<i32>(), Some(99i32));
+    }
+
+    #[test]
+    fn is_type_checks() {
+        assert!(42i32.to_db_value().is::<i32>());
+        assert!(!42i32.to_db_value().is::<i64>());
+        assert!(DbValue::from_null().is_null());
+        assert!(!DbValue::from_null().is::<i32>());
     }
 }

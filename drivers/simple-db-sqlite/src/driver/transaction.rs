@@ -7,11 +7,18 @@ use tokio::sync::Mutex;
 
 use crate::{driver::executor::SqliteExecutor, queries::{find::SqlitePreparedFindQuery, insert::SqlitePreparedInsertQuery, update::SqlitePreparedUpdateQuery}};
 
+/// A SQLite database transaction.
+///
+/// Represents an active SQLite transaction that can be committed or rolled back.
+/// All queries executed within a transaction use the transaction's connection rather
+/// than the pool, ensuring isolation.
 pub struct SqliteTransaction {
+    /// The executor wrapping the sqlx transaction.
     executor: SqliteExecutor,
 }
 
 impl SqliteTransaction {
+    /// Creates a new transaction from an sqlx `Transaction<Sqlite>`.
     pub fn new(tx: Transaction<'static, Sqlite>) -> Self {
         Self {
             executor: SqliteExecutor::Transaction(Arc::new(Mutex::new(Some(tx)))),

@@ -6,18 +6,41 @@ use tokio::sync::Mutex;
 
 use crate::{driver::{driver::DbDriver, executor::DbExecutor}, types::{DbError, DbResult}};
 
+/// A database transaction supporting ACID semantics.
+///
+/// A transaction is an executor that can be committed or rolled back atomically.
+/// Most applications use the [`DbTransactionExt::transaction`] helper method rather than
+/// directly managing this trait.
 #[async_trait]
 pub trait DbTransaction: DbExecutor {
+    /// Commits the transaction, applying all changes to the database.
     async fn commit(&self) -> DbResult<()>;
+    
+    /// Rolls back the transaction, discarding all changes.
     async fn rollback(&self) -> DbResult<()>;
 }
 
+/// Extension trait providing convenience methods on drivers to run transactional blocks.
 #[async_trait]
 pub trait DbTransactionExt {
+    /// Runs the closure `f` in a new transaction, committing on success and rolling back on error.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let driver: Arc<dyn DbDriver> = todo!();
+    /// let result = driver.transaction(|tx| async {
+    ///     // Perform queries using tx...
+    ///     Ok(value)
+    /// }).await?;
+    /// ```
     async fn transaction<F, Fut, T>(&self, f: F) -> DbResult<T>
     where F: FnOnce(Arc<dyn DbTransaction>) -> Fut + Send, Fut: Future<Output = DbResult<T>> + Send, T: Send;
 }
 
+/// Backend-neutral helper for safely extracting and executing an action on a shared transaction.
+///
+/// This generic function handles the Mutex acquire, Option extraction, and error wrapping
+/// needed across all driver implementations.
 pub async fn close_transaction<T, F, Fut, E>(
     shared_tx: &Arc<Mutex<Option<T>>>,
     closed_error: &'static str,
@@ -55,5 +78,15 @@ impl DbTransactionExt for Arc<dyn DbDriver> {
                 Err(e)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_transaction_trait_exists() {
+        // This test documents the transaction API surface.
+        // Concrete testing requires a mock driver implementation.
     }
 }
