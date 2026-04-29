@@ -1,52 +1,69 @@
-use simple_db_core::{query::FindQuery, types::DbValue};
+use async_trait::async_trait;
+use simple_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
+use crate::{builders::{filters::compile_filters, groups::compile_groups, projections::compile_projections, sorts::compile_sorts}, driver::executor::MySqlExecutor, queries::binders::bind_values, types::cursor::MySqlDbCursor};
 
-use crate::builders::{compile_filters, compile_groups, compile_projections, compile_sorts};
+pub(crate) struct MySqlPreparedFindQuery<'a> {
+    executor: &'a MySqlExecutor,
+    sql: String,
+    parameters: Vec<DbValue>
+}
 
-/// Compiles a [`FindQuery`] into a MySQL SELECT statement and its bound parameters.
-///
-/// Handles SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, and OFFSET.
-/// Parameters use `?` positional placeholders.
-pub fn compile_find_query(query: FindQuery) -> (String, Vec<DbValue>) {
-    let (filter_sql, parameters) = compile_filters(&query.filters);
-    let proj_sql = compile_projections(&query.projections);
-    let group_sql = compile_groups(&query.groups);
-    let sort_sql = compile_sorts(&query.sorts);
+impl<'a> MySqlPreparedFindQuery<'a> {
+    pub(crate) fn new(executor: &'a MySqlExecutor, query: FindQuery) -> Self {
+        let (filter_sql, parameters) = compile_filters(&query.filters);
+        let proj_sql = compile_projections(&query.projections);
+        let group_sql = compile_groups(&query.groups);
+        let sort_sql = compile_sorts(&query.sorts);
 
-    let capacity = 64 + query.collection.len() + proj_sql.len() + filter_sql.len() + group_sql.len() + sort_sql.len();
-    let mut sql = String::with_capacity(capacity);
+        let capacity = 64 + query.table.len() + proj_sql.len() + filter_sql.len() + group_sql.len() + sort_sql.len();
+        let mut sql = String::with_capacity(capacity);
 
-    sql.push_str("SELECT ");
-    if proj_sql.is_empty() {
-        sql.push('*');
-    } else {
-        sql.push_str(&proj_sql);
+        sql.push_str("SELECT ");
+        if proj_sql.is_empty() {
+            sql.push('*');
+        } else {
+            sql.push_str(&proj_sql);
+        }
+
+        sql.push_str(" FROM ");
+        sql.push_str(&query.table);
+
+        if !filter_sql.is_empty() {
+            sql.push_str(" WHERE ");
+            sql.push_str(&filter_sql);
+        }
+
+        if !group_sql.is_empty() {
+            sql.push_str(" GROUP BY ");
+            sql.push_str(&group_sql);
+        }
+
+        if !sort_sql.is_empty() {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(&sort_sql);
+        }
+
+        if let Some(limit) = query.limit {
+            sql.push_str(&format!(" LIMIT {}", limit));
+        }
+        
+        if let Some(offset) = query.offset {
+            sql.push_str(&format!(" OFFSET {}", offset));
+        }
+
+        Self { executor, sql, parameters }
     }
+}
 
-    sql.push_str(" FROM ");
-    sql.push_str(&query.collection);
-
-    if !filter_sql.is_empty() {
-        sql.push_str(" WHERE ");
-        sql.push_str(&filter_sql);
+#[async_trait]
+impl PreparedFindQuery for MySqlPreparedFindQuery<'_> {
+    async fn execute(&self) -> DbResult<Box<dyn DbCursor>> {
+        let mut query = sqlx::query(&self.sql);
+        query = bind_values(query, &self.parameters);
+        let result = self.executor.fetch_all(query)
+            .await
+            .map_err(DbError::driver)?;
+        let stream = futures::stream::iter(result.into_iter().map(Ok));
+        Ok(Box::new(MySqlDbCursor::new(Box::pin(stream))))
     }
-
-    if !group_sql.is_empty() {
-        sql.push_str(" GROUP BY ");
-        sql.push_str(&group_sql);
-    }
-
-    if !sort_sql.is_empty() {
-        sql.push_str(" ORDER BY ");
-        sql.push_str(&sort_sql);
-    }
-
-    if let Some(limit) = query.limit {
-        sql.push_str(&format!(" LIMIT {}", limit));
-    }
-    
-    if let Some(offset) = query.offset {
-        sql.push_str(&format!(" OFFSET {}", offset));
-    }
-
-    (sql, parameters)
 }

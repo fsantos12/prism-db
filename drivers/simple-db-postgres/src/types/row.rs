@@ -5,16 +5,11 @@ use simple_db_core::types::{DbRow, DbValue};
 use sqlx::{postgres::PgRow, Column, Row, TypeInfo, ValueRef};
 use uuid::Uuid;
 
-/// Adapter that wraps a [`PgRow`] and exposes it through the [`DbRow`] interface.
-///
-/// Maps each PostgreSQL OID type name to its exact [`DbValue`] variant — no
-/// lossy string coercions. Unknown types fall back to NULL.
-pub struct PostgresDbRow {
+pub(crate) struct PostgresDbRow {
     row: PgRow,
 }
 
 impl PostgresDbRow {
-    /// Creates a new adapter wrapping the given raw PostgreSQL row.
     pub fn new(row: PgRow) -> Self {
         Self { row }
     }
@@ -27,84 +22,66 @@ impl DbRow for PostgresDbRow {
 
         let type_name = raw_value.type_info().name().to_uppercase();
         match type_name.as_str() {
-            // --- integers ---
-            "INT2" | "SMALLINT" => {
-                let val: i16 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i16(val))
+            "BOOL" | "BOOLEAN" => {
+                let val: bool = self.row.try_get(index).ok()?;
+                Some(DbValue::from(val))
             }
-            "INT4" | "INT" | "SERIAL" => {
+            "INT2" | "SMALLINT" | "SMALLSERIAL" => {
+                let val: i16 = self.row.try_get(index).ok()?;
+                Some(DbValue::from(val))
+            }
+            "INT4" | "INT" | "INTEGER" | "SERIAL" => {
                 let val: i32 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i32(val))
+                Some(DbValue::from(val))
             }
             "INT8" | "BIGINT" | "BIGSERIAL" => {
                 let val: i64 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i64(val))
+                Some(DbValue::from(val))
             }
-
-            // --- floats ---
             "FLOAT4" | "REAL" => {
                 let val: f32 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_f32(val))
+                Some(DbValue::from(val))
             }
             "FLOAT8" | "DOUBLE PRECISION" => {
                 let val: f64 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_f64(val))
+                Some(DbValue::from(val))
             }
-
-            // --- decimal (NUMERIC columns and aggregate results like AVG) ---
             "NUMERIC" | "DECIMAL" => {
                 let val: Decimal = self.row.try_get(index).ok()?;
-                Some(DbValue::from_decimal(val))
+                Some(DbValue::from(val))
             }
-
-            // --- boolean ---
-            "BOOL" => {
-                let val: bool = self.row.try_get(index).ok()?;
-                Some(DbValue::from_bool(val))
-            }
-
-            // --- binary ---
             "BYTEA" => {
                 let val: Vec<u8> = self.row.try_get(index).ok()?;
-                Some(DbValue::from_bytes(val))
+                Some(DbValue::from(val))
             }
-
-            // --- text ---
-            "TEXT" | "VARCHAR" | "BPCHAR" | "NAME" => {
+            "TEXT" | "VARCHAR" | "BPCHAR" | "CHAR" | "NAME" | "CITEXT" => {
                 let val: String = self.row.try_get(index).ok()?;
-                Some(DbValue::from_string(val))
+                Some(DbValue::from(val))
             }
-
-            // --- uuid ---
-            "UUID" => {
-                let val: Uuid = self.row.try_get(index).ok()?;
-                Some(DbValue::from_uuid(val))
-            }
-
-            // --- json ---
             "JSON" | "JSONB" => {
                 let val: JsonValue = self.row.try_get(index).ok()?;
-                Some(DbValue::from_json(val))
+                Some(DbValue::from(val))
             }
-
-            // --- date / time ---
+            "UUID" => {
+                let val: Uuid = self.row.try_get(index).ok()?;
+                Some(DbValue::from(val))
+            }
             "DATE" => {
                 let val: NaiveDate = self.row.try_get(index).ok()?;
-                Some(DbValue::from_date(val))
+                Some(DbValue::from(val))
             }
-            "TIME" => {
+            "TIME" | "TIMETZ" => {
                 let val: NaiveTime = self.row.try_get(index).ok()?;
-                Some(DbValue::from_time(val))
+                Some(DbValue::from(val))
             }
             "TIMESTAMP" => {
                 let val: NaiveDateTime = self.row.try_get(index).ok()?;
-                Some(DbValue::from_timestamp(val))
+                Some(DbValue::from(val))
             }
             "TIMESTAMPTZ" => {
                 let val: DateTime<Utc> = self.row.try_get(index).ok()?;
-                Some(DbValue::from_timestampz(val))
+                Some(DbValue::from(val))
             }
-
             _ => Some(DbValue::from_null()),
         }
     }

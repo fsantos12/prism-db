@@ -1,9 +1,6 @@
 use simple_db_core::{query::{Filter, FilterDefinition}, types::DbValue};
 
-/// Compiles a [`FilterDefinition`] into a `WHERE` clause fragment and its bound parameters.
-///
-/// Top-level filters are joined with `AND`. Returns an empty string when there are no filters.
-pub fn compile_filters(filters: &FilterDefinition) -> (String, Vec<DbValue>) {
+pub(crate) fn compile_filters(filters: &FilterDefinition) -> (String, Vec<DbValue>) {
     if filters.is_empty() { return ("".to_string(), vec![]) }
 
     let mut sql_parts = Vec::new();
@@ -19,8 +16,6 @@ pub fn compile_filters(filters: &FilterDefinition) -> (String, Vec<DbValue>) {
     (final_sql, values)
 }
 
-/// Joins a slice of filters with the given logical operator (`" AND "` or `" OR "`)
-/// and wraps the result in parentheses: `(a AND b)`.
 fn compile_logical_filters(filters: &[Filter], operator: &str) -> (String, Vec<DbValue>) {
     if filters.is_empty() { return ("".to_string(), vec![]) }
 
@@ -37,18 +32,11 @@ fn compile_logical_filters(filters: &[Filter], operator: &str) -> (String, Vec<D
     (final_sql, values)
 }
 
-/// Compiles a single [`Filter`] variant into a SQL fragment and its bound parameters.
 fn compile_filter(filter: &Filter) -> (String, Vec<DbValue>) {
     match filter {
-        // =====================================================================
-        // NULL CHECKS
-        // =====================================================================
         Filter::IsNull(smol_str) => (format!("{} IS NULL", smol_str), vec![]),
         Filter::IsNotNull(smol_str) => (format!("{} IS NOT NULL", smol_str), vec![]),
 
-        // =====================================================================
-        // BASIC COMPARISONS
-        // =====================================================================
         Filter::Eq(smol_str, db_value) => (format!("{} = ?", smol_str), vec![db_value.clone()]),
         Filter::Neq(smol_str, db_value) => (format!("{} != ?", smol_str), vec![db_value.clone()]),
         Filter::Lt(smol_str, db_value) => (format!("{} < ?", smol_str), vec![db_value.clone()]),
@@ -56,9 +44,6 @@ fn compile_filter(filter: &Filter) -> (String, Vec<DbValue>) {
         Filter::Gt(smol_str, db_value) => (format!("{} > ?", smol_str), vec![db_value.clone()]),
         Filter::Gte(smol_str, db_value) => (format!("{} >= ?", smol_str), vec![db_value.clone()]),
 
-        // =====================================================================
-        // PATTERN MATCHING
-        // =====================================================================
         Filter::StartsWith(col, val) => (format!("{} LIKE ? || '%'", col), vec![val.clone()]),
         Filter::NotStartsWith(col, val) => (format!("{} NOT LIKE ? || '%'", col), vec![val.clone()]),
         Filter::EndsWith(col, val) => (format!("{} LIKE '%' || ?", col), vec![val.clone()]),
@@ -66,43 +51,28 @@ fn compile_filter(filter: &Filter) -> (String, Vec<DbValue>) {
         Filter::Contains(col, val) => (format!("{} LIKE '%' || ? || '%'", col), vec![val.clone()]),
         Filter::NotContains(col, val) => (format!("{} NOT LIKE '%' || ? || '%'", col), vec![val.clone()]),
 
-        // =====================================================================
-        // REGEX MATCHING
-        // Note: SQLite needs REGEXP extension
-        // =====================================================================
-        Filter::Regex(smol_str, smol_str1) => (format!("{} REGEXP ?", smol_str), vec![DbValue::from_string(smol_str1.clone())]),
+        Filter::Regex(smol_str, smol_str1) => (format!("{} GLOB ?", smol_str), vec![DbValue::from(smol_str1.clone())]),
 
-        // =====================================================================
-        // RANGE CHECKS
-        // =====================================================================
         Filter::Between(smol_str, (low, high)) => (format!("{} BETWEEN ? AND ?", smol_str), vec![low.clone(), high.clone()]),
         Filter::NotBetween(smol_str, (low, high)) => (format!("{} NOT BETWEEN ? AND ?", smol_str), vec![low.clone(), high.clone()]),
 
-        // =====================================================================
-        // SET MEMBERSHIP
-        // =====================================================================
         Filter::In(smol_str, vals) => {
             if vals.is_empty() {
-                // If the list is empty, the condition can never be true
                 return ("1=0".to_string(), vec![]);
             }
             let placeholders = vec!["?"; vals.len()].join(", ");
             let sql = format!("{} IN ({})", smol_str, placeholders);
             (sql, vals.clone())
-        },
+        }
         Filter::NotIn(smol_str, vals) => {
             if vals.is_empty() {
-                // If the list is empty, the condition is always true
                 return ("1=1".to_string(), vec![]);
             }
             let placeholders = vec!["?"; vals.len()].join(", ");
             let sql = format!("{} NOT IN ({})", smol_str, placeholders);
             (sql, vals.clone())
-        },
+        }
 
-        // =====================================================================
-        // LOGICAL OPERATORS
-        // =====================================================================
         Filter::And(filters) => compile_logical_filters(filters, " AND "),
         Filter::Or(filters) => compile_logical_filters(filters, " OR "),
         Filter::Not(filter) => {

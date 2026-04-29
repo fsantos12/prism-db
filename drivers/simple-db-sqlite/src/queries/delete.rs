@@ -1,32 +1,37 @@
-use simple_db_core::{query::DeleteQuery, types::DbValue};
+use async_trait::async_trait;
+use simple_db_core::{query::{DeleteQuery, PreparedDeleteQuery}, types::{DbError, DbResult, DbValue}};
+use crate::{builders::filters::compile_filters, driver::executor::SqliteExecutor, queries::binders::bind_values};
 
-use crate::builders::compile_filters;
+pub(crate) struct SqlitePreparedDeleteQuery<'a> {
+    executor: &'a SqliteExecutor,
+    sql: String,
+    parameters: Vec<DbValue>
+}
 
-/// Compiles a [`DeleteQuery`] into a SQLite DELETE statement and its bound parameters.
-///
-/// If no filters are set, deletes all rows in the collection.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let (sql, params) = compile_delete_query(
-///     Query::delete("users").filter(|b| b.eq("id", 1i32))
-/// );
-/// // sql = "DELETE FROM users WHERE id = ?"
-/// ```
-pub fn compile_delete_query(query: DeleteQuery) -> (String, Vec<DbValue>) {
-    let (filter_sql, filter_params) = compile_filters(&query.filters);
+impl<'a> SqlitePreparedDeleteQuery<'a> {
+    pub(crate) fn new(executor: &'a SqliteExecutor, query: DeleteQuery) -> Self {
+        let (filter_sql, parameters) = compile_filters(&query.filters);
 
-    let exact_sql_capacity = 19 + query.collection.len() + filter_sql.len();
-    let mut sql = String::with_capacity(exact_sql_capacity);
+        let mut sql = String::with_capacity(19 + query.table.len() + filter_sql.len());
+        sql.push_str("DELETE FROM ");
+        sql.push_str(&query.table);
+        if !filter_sql.is_empty() {
+            sql.push_str(" WHERE ");
+            sql.push_str(&filter_sql);
+        }
 
-    sql.push_str("DELETE FROM ");
-    sql.push_str(&query.collection);
-
-    if !filter_sql.is_empty() {
-        sql.push_str(" WHERE ");
-        sql.push_str(&filter_sql);
+        Self { executor, sql, parameters }
     }
+}
 
-    (sql, filter_params)
+#[async_trait]
+impl PreparedDeleteQuery for SqlitePreparedDeleteQuery<'_> {
+    async fn execute(&self) -> DbResult<u64> {
+        let mut query = sqlx::query(&self.sql);
+        query = bind_values(query, &self.parameters);
+        let result = self.executor.execute(query)
+            .await
+            .map_err(DbError::driver)?;
+        Ok(result.rows_affected())
+    }
 }

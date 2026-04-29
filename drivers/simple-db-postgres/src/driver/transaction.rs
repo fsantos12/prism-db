@@ -1,82 +1,70 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use simple_db_core::{driver::{executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
+use sqlx::{Postgres, Transaction};
 use tokio::sync::Mutex;
-use simple_db_core::{
-    driver::{DbExecutor, DbTransaction},
-    query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery},
-    types::{DbCursor, DbError, DbResult},
-};
-use sqlx::Postgres;
 
-use super::executor::{exec_delete, exec_find, exec_insert, exec_update};
+use crate::{driver::executor::PostgresExecutor, queries::{find::PostgresPreparedFindQuery, insert::PostgresPreparedInsertQuery, update::PostgresPreparedUpdateQuery}};
 
-#[derive(Debug, thiserror::Error)]
-#[error("transaction has already been committed or rolled back")]
-struct TransactionConsumedError;
-
-/// A PostgreSQL transaction wrapping a sqlx connection held open for the transaction's lifetime.
-///
-/// Uses `Mutex<Option<...>>` so that:
-/// - CRUD operations can borrow `&mut Transaction` while holding the lock.
-/// - `commit` / `rollback` consume the transaction by calling `take()`.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let tx = driver.begin().await?;
-/// tx.insert(Query::insert("orders").insert(row)).await?;
-/// tx.commit().await?;
-/// ```
 pub struct PostgresTransaction {
-    tx: Mutex<Option<sqlx::Transaction<'static, Postgres>>>,
+    executor: PostgresExecutor,
 }
 
 impl PostgresTransaction {
-    /// Wraps an open sqlx transaction in a [`PostgresTransaction`].
-    pub fn new(tx: sqlx::Transaction<'static, Postgres>) -> Self {
-        Self { tx: Mutex::new(Some(tx)) }
+    pub fn new(tx: Transaction<'static, Postgres>) -> Self {
+        Self {
+            executor: PostgresExecutor::Transaction(Arc::new(Mutex::new(Some(tx)))),
+        }
     }
 }
 
 #[async_trait]
 impl DbExecutor for PostgresTransaction {
-    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_find(&mut **tx, query).await
+    fn prepare_find(&self, query: FindQuery) -> DbResult<Box<dyn PreparedFindQuery + '_>> {
+        Ok(Box::new(PostgresPreparedFindQuery::new(&self.executor, query)))
     }
 
-    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_insert(&mut **tx, query).await
+    fn prepare_insert(&self, query: InsertQuery) -> DbResult<Box<dyn PreparedInsertQuery + '_>> {
+        Ok(Box::new(PostgresPreparedInsertQuery::new(&self.executor, query)))
     }
 
-    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_update(&mut **tx, query).await
+    fn prepare_update(&self, query: UpdateQuery) -> DbResult<Box<dyn PreparedUpdateQuery + '_>> {
+        Ok(Box::new(PostgresPreparedUpdateQuery::new(&self.executor, query)))
     }
 
-    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_delete(&mut **tx, query).await
+    fn prepare_delete(&self, query: simple_db_core::query::DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
+        Ok(Box::new(crate::queries::delete::PostgresPreparedDeleteQuery::new(&self.executor, query)))
     }
 }
 
 #[async_trait]
 impl DbTransaction for PostgresTransaction {
     async fn commit(&self) -> DbResult<()> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.take().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        tx.commit().await.map_err(DbError::driver)
+        if let PostgresExecutor::Transaction(inner) = &self.executor {
+            let mut guard = inner.lock().await;
+            if let Some(tx) = guard.take() {
+                tx.commit().await.map_err(DbError::driver)?;
+                Ok(())
+            } else {
+                Err(DbError::Internal("Transaction already closed".into()))
+            }
+        } else {
+            unreachable!("PostgresTransaction must always hold a Transaction variant")
+        }
     }
 
     async fn rollback(&self) -> DbResult<()> {
-        let mut guard = self.tx.lock().await;
-        if let Some(tx) = guard.take() {
-            tx.rollback().await.map_err(DbError::driver)?;
+        if let PostgresExecutor::Transaction(inner) = &self.executor {
+            let mut guard = inner.lock().await;
+            if let Some(tx) = guard.take() {
+                tx.rollback().await.map_err(DbError::driver)?;
+                Ok(())
+            } else {
+                Err(DbError::Internal("Transaction already closed".into()))
+            }
+        } else {
+            unreachable!()
         }
-        Ok(())
     }
 }

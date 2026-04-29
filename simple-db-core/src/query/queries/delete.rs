@@ -1,54 +1,35 @@
-use crate::query::{FilterBuilder, FilterDefinition};
+use async_trait::async_trait;
 
-/// DELETE query builder for removing data from a collection.
-///
-/// Supports:
-/// - WHERE filter conditions to target specific rows
-/// - Multiple filter conditions (implicit AND logic)
-///
-/// # Example
-///
-/// ```rust
-/// use simple_db_core::query::Query;
-/// use simple_db_core::filter;
-///
-/// let query = Query::delete("users")
-///     .filter(filter!(eq("id", 42i32)));
-/// ```
-///
-/// # Safety Note
-///
-/// If no filters are specified, the delete applies to ALL rows in the collection.
-/// Always use `.filter()` unless you explicitly want to delete everything.
+use crate::{query::{FilterBuilder, FilterDefinition}, types::DbResult};
+
 #[derive(Debug, Clone)]
 pub struct DeleteQuery {
-    pub collection: String,
+    pub table: String,
     pub filters: FilterDefinition,
 }
 
 impl DeleteQuery {
-    /// Creates a new delete query for the given collection.
-    pub fn new(collection: impl Into<String>) -> Self {
+    pub fn new(table: impl Into<String>) -> Self {
         Self {
-            collection: collection.into(),
+            table: table.into(),
             filters: FilterDefinition::new(),
         }
     }
 
-    /// Adds filter conditions (WHERE clause) from a pre-built definition.
-    ///
-    /// Multiple calls use implicit AND logic.
     pub fn filter(mut self, filters: FilterDefinition) -> Self {
         self.filters.extend(filters);
         self
     }
 
-    /// Adds filter conditions via a builder closure.
     pub fn with_filter_builder<F>(mut self, build: F) -> Self
-    where
-        F: FnOnce(FilterBuilder) -> FilterBuilder,
+    where F: FnOnce(FilterBuilder) -> FilterBuilder,
     {
         self.filters.extend(build(FilterBuilder::new()).build());
         self
     }
+}
+
+#[async_trait]
+pub trait PreparedDeleteQuery: Send + Sync {
+    async fn execute(&self) -> DbResult<u64>;
 }

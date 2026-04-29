@@ -1,42 +1,22 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use simple_db_core::{
-    driver::{DbDriver, DbExecutor, DbTransaction},
-    query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery},
-    types::{DbCursor, DbError, DbResult},
-};
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use simple_db_core::{driver::{driver::DbDriver, executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
+use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 
-use super::{
-    executor::{exec_delete, exec_find, exec_insert, exec_update},
-    SqliteTransaction,
-};
+use crate::{SqliteTransaction, driver::executor::SqliteExecutor, queries::{find::SqlitePreparedFindQuery, insert::SqlitePreparedInsertQuery, update::SqlitePreparedUpdateQuery}};
 
-/// Pool-backed SQLite driver.
-///
-/// Wraps a [`SqlitePool`] and implements [`DbDriver`] so it can be injected
-/// into a [`DbContext`](simple_db_core::context::DbContext).
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let pool = SqlitePoolOptions::new().connect("sqlite://:memory:").await?;
-/// let driver = SqliteDriver::new(pool);
-/// let ctx = DbContext::new(Arc::new(driver));
-/// ```
 pub struct SqliteDriver {
-    pub pool: SqlitePool,
+    executor: SqliteExecutor 
 }
 
 impl SqliteDriver {
-    /// Creates a new [`SqliteDriver`] wrapping the given connection pool.
     pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self { 
+            executor: SqliteExecutor::Pool(pool) 
+        }
     }
 
-    /// Connects to a SQLite database at `url` with a default pool of 5 connections.
-    /// Use `"sqlite://:memory:"` for an in-memory database.
     pub async fn connect(url: &str) -> DbResult<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -46,53 +26,50 @@ impl SqliteDriver {
         Ok(Self::new(pool))
     }
 
-    /// Executes a raw SQL statement (DDL or otherwise) against the pool.
     pub async fn execute_raw(&self, sql: &str) -> DbResult<()> {
-        sqlx::query(sql)
-            .execute(&self.pool)
+        let query = sqlx::query(sql);
+        self.executor.execute(query)
             .await
             .map_err(DbError::driver)?;
         Ok(())
     }
 }
 
-// ==========================================
-// 1. Implement the generic execution trait
-// ==========================================
 #[async_trait]
 impl DbExecutor for SqliteDriver {
-    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        exec_find(&self.pool, query).await
+    fn prepare_find(&self, query: FindQuery) -> DbResult<Box<dyn PreparedFindQuery + '_>> {
+        Ok(Box::new(SqlitePreparedFindQuery::new(&self.executor, query)))
     }
 
-    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        exec_insert(&self.pool, query).await
+    fn prepare_insert(&self, query: InsertQuery) -> DbResult<Box<dyn PreparedInsertQuery + '_>> {
+        Ok(Box::new(SqlitePreparedInsertQuery::new(&self.executor, query)))
     }
 
-    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        exec_update(&self.pool, query).await
+    fn prepare_update(&self, query: UpdateQuery) -> DbResult<Box<dyn PreparedUpdateQuery + '_>> {
+        Ok(Box::new(SqlitePreparedUpdateQuery::new(&self.executor, query)))
     }
 
-    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        exec_delete(&self.pool, query).await
+    fn prepare_delete(&self, query: simple_db_core::query::DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
+        Ok(Box::new(crate::queries::delete::SqlitePreparedDeleteQuery::new(&self.executor, query)))
     }
 }
 
-// ==========================================
-// 2. Implement the Driver-specific trait
-// ==========================================
 #[async_trait]
 impl DbDriver for SqliteDriver {
     async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
-        let tx = self.pool.begin().await.map_err(DbError::driver)?;
-        Ok(Arc::new(SqliteTransaction::new(tx)))
+        if let SqliteExecutor::Pool(pool) = &self.executor {
+            let tx = pool.begin().await.map_err(DbError::driver)?;
+            let sqlite_tx = SqliteTransaction::new(tx);
+            Ok(Arc::new(sqlite_tx))
+        } else {
+            Err(DbError::Internal("Cannot start a transaction from an existing transaction".into()))
+        }
     }
 
     async fn ping(&self) -> DbResult<()> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await
-            .map_err(DbError::driver)?;
+        if let SqliteExecutor::Pool(pool) = &self.executor {
+            pool.acquire().await.map_err(DbError::driver)?;
+        }
         Ok(())
     }
 }

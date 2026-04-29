@@ -1,81 +1,34 @@
 use std::sync::Arc;
-use async_trait::async_trait;
-use crate::driver::{DbDriver, DbExecutor, DbTransaction};
-use crate::query::{FindQuery, InsertQuery, UpdateQuery, DeleteQuery};
-use crate::types::{DbCursor, DbResult};
 
-/// A context for database operations that wraps a `DbDriver`.
-///
-/// Delegates all operations to the underlying driver. Can be cloned cheaply
-/// since it holds an `Arc<dyn DbDriver>`.
+use async_trait::async_trait;
+
+use crate::{driver::{driver::DbDriver, executor::DbExecutor}, query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery}, types::DbResult};
+
 pub struct DbContext {
     driver: Arc<dyn DbDriver>,
 }
 
 impl DbContext {
-    /// Creates a new context wrapping a driver.
     pub fn new(driver: Arc<dyn DbDriver>) -> Self {
-        Self { driver }
-    }
-
-    /// Executes a find query.
-    pub async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        self.driver.find(query).await
-    }
-
-    /// Executes an insert query.
-    pub async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        self.driver.insert(query).await
-    }
-
-    /// Executes an update query.
-    pub async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        self.driver.update(query).await
-    }
-
-    /// Executes a delete query.
-    pub async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        self.driver.delete(query).await
-    }
-
-    /// Begins a transaction.
-    pub async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
-        self.driver.begin().await
-    }
-
-    /// Pings the database to verify connectivity.
-    pub async fn ping(&self) -> DbResult<()> {
-        self.driver.ping().await
+        DbContext { driver }
     }
 }
 
 #[async_trait]
 impl DbExecutor for DbContext {
-    /// Executes a find query.
-    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        self.driver.find(query).await
+    fn prepare_find(&self, query: FindQuery) -> DbResult<Box<dyn PreparedFindQuery + '_>> {
+        self.driver.prepare_find(query)
     }
 
-    /// Executes an insert query.
-    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        self.driver.insert(query).await
+    fn prepare_insert(&self, query: InsertQuery) -> DbResult<Box<dyn PreparedInsertQuery + '_>> {
+        self.driver.prepare_insert(query)
     }
 
-    /// Executes an update query.
-    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        self.driver.update(query).await
+    fn prepare_update(&self, query: UpdateQuery) -> DbResult<Box<dyn PreparedUpdateQuery + '_>> {
+        self.driver.prepare_update(query)
     }
 
-    /// Executes a delete query.
-    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        self.driver.delete(query).await
-    }
-}
-
-impl Clone for DbContext {
-    fn clone(&self) -> Self {
-        Self {
-            driver: Arc::clone(&self.driver),
-        }
+    fn prepare_delete(&self, query: DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
+        self.driver.prepare_delete(query)
     }
 }

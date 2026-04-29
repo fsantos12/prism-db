@@ -1,43 +1,54 @@
-use simple_db_core::{query::InsertQuery, types::DbValue};
+use async_trait::async_trait;
+use simple_db_core::{query::{InsertQuery, PreparedInsertQuery}, types::{DbError, DbResult, DbValue}};
+use crate::{driver::executor::SqliteExecutor, queries::binders::bind_values};
 
-/// Compiles an [`InsertQuery`] into a SQLite INSERT statement and its bound parameters.
-///
-/// Generates a multi-row `INSERT INTO … VALUES (?, ?), (?, ?)` form when multiple
-/// rows are provided. Returns an empty string if the query has no rows.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let (sql, params) = compile_insert_query(
-///     Query::insert("users").insert([("name", "Alice"), ("age", 25i32)])
-/// );
-/// // sql = "INSERT INTO users (name, age) VALUES (?, ?)"
-/// ```
-pub fn compile_insert_query(query: InsertQuery) -> (String, Vec<DbValue>) {
-    if query.values.is_empty() { return (String::new(), vec![]);}
+pub(crate) struct SqlitePreparedInsertQuery<'a> {
+    executor: &'a SqliteExecutor,
+    sql: String,
+    parameters: Vec<DbValue>
+}
 
-    let columns: Vec<String> = query.values[0].iter().map(|(col, _)| col.clone()).collect();
-    let mut sql = String::with_capacity(128);
-
-    sql.push_str("INSERT INTO ");
-    sql.push_str(&query.collection);
-    sql.push_str(" (");
-    sql.push_str(&columns.join(", "));
-    sql.push_str(") VALUES ");
-
-    let total_rows = query.values.len();
-    let columns_per_row = columns.len();
-
-    let mut parameters = Vec::with_capacity(total_rows * columns_per_row);
-    let mut row_placeholders = Vec::with_capacity(total_rows);
-
-    for row in query.values {
-        row_placeholders.push(format!("({})", vec!["?"; columns_per_row].join(", ")));
-        for (_, value) in row {
-            parameters.push(value);
+impl<'a> SqlitePreparedInsertQuery<'a> {
+    pub(crate) fn new(executor: &'a SqliteExecutor, query: InsertQuery) -> Self {
+        if query.values.is_empty() {
+            return Self { executor, sql: String::new(), parameters: vec![] };
         }
-    }
 
-    sql.push_str(&row_placeholders.join(", "));
-    (sql, parameters)
+        let columns: Vec<String> = query.values[0].iter().map(|(col, _)| col.clone()).collect();
+        let mut sql = String::with_capacity(128);
+
+        sql.push_str("INSERT INTO ");
+        sql.push_str(&query.table);
+        sql.push_str(" (");
+        sql.push_str(&columns.join(", "));
+        sql.push_str(") VALUES ");
+
+        let total_rows = query.values.len();
+        let columns_per_row = columns.len();
+
+        let mut parameters = Vec::with_capacity(total_rows * columns_per_row);
+        let mut row_placeholders = Vec::with_capacity(total_rows);
+
+        for row in query.values {
+            row_placeholders.push(format!("({})", vec!["?"; columns_per_row].join(", ")));
+            for (_, value) in row {
+                parameters.push(value);
+            }
+        }
+
+        sql.push_str(&row_placeholders.join(", "));
+        Self { executor, sql, parameters }
+    }
+}
+
+#[async_trait]
+impl PreparedInsertQuery for SqlitePreparedInsertQuery<'_> {
+    async fn execute(&self) -> DbResult<u64> {
+        let mut query = sqlx::query(&self.sql);
+        query = bind_values(query, &self.parameters);
+        let result = self.executor.execute(query)
+            .await
+            .map_err(DbError::driver)?;
+        Ok(result.rows_affected())
+    }
 }

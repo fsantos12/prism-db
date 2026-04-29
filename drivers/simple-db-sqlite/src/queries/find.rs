@@ -1,72 +1,69 @@
-use simple_db_core::{query::FindQuery, types::DbValue};
+use async_trait::async_trait;
+use simple_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
+use crate::{builders::{filters::compile_filters, groups::compile_groups, projections::compile_projections, sorts::compile_sorts}, driver::executor::SqliteExecutor, queries::binders::bind_values, types::cursor::SqliteDbCursor};
 
-use crate::builders::{compile_filters, compile_groups, compile_projections, compile_sorts};
+pub(crate) struct SqlitePreparedFindQuery<'a> {
+    executor: &'a SqliteExecutor,
+    sql: String,
+    parameters: Vec<DbValue>
+}
 
-/// Compiles a [`FindQuery`] into a SQLite SELECT statement and its bound parameters.
-///
-/// Handles SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT, and OFFSET.
-/// SQLite does not support OFFSET without LIMIT, so `-1` is used as an unlimited sentinel.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let (sql, params) = compile_find_query(Query::find("users").filter(|b| b.eq("active", true)));
-/// // sql = "SELECT * FROM users WHERE active = ?"
-/// // params = [DbValue::from(true)]
-/// ```
-pub fn compile_find_query(query: FindQuery) -> (String, Vec<DbValue>) {
-    let (filter_sql, parameters) = compile_filters(&query.filters);
-    let proj_sql = compile_projections(&query.projections);
-    let group_sql = compile_groups(&query.groups);
-    let sort_sql = compile_sorts(&query.sorts);
+impl<'a> SqlitePreparedFindQuery<'a> {
+    pub(crate) fn new(executor: &'a SqliteExecutor, query: FindQuery) -> Self {
+        let (filter_sql, parameters) = compile_filters(&query.filters);
+        let proj_sql = compile_projections(&query.projections);
+        let group_sql = compile_groups(&query.groups);
+        let sort_sql = compile_sorts(&query.sorts);
 
-    let capacity = 64 + query.collection.len() + proj_sql.len() + filter_sql.len() + group_sql.len() + sort_sql.len();
-    let mut sql = String::with_capacity(capacity);
+        let capacity = 64 + query.table.len() + proj_sql.len() + filter_sql.len() + group_sql.len() + sort_sql.len();
+        let mut sql = String::with_capacity(capacity);
 
-    // SELECT
-    sql.push_str("SELECT ");
-    if proj_sql.is_empty() {
-        sql.push('*');
-    } else {
-        sql.push_str(&proj_sql);
-    }
-
-    // FROM
-    sql.push_str(" FROM ");
-    sql.push_str(&query.collection);
-
-    // WHERE
-    if !filter_sql.is_empty() {
-        sql.push_str(" WHERE ");
-        sql.push_str(&filter_sql);
-    }
-
-    // GROUP BY
-    if !group_sql.is_empty() {
-        sql.push_str(" GROUP BY ");
-        sql.push_str(&group_sql);
-    }
-
-    // ORDER BY
-    if !sort_sql.is_empty() {
-        sql.push_str(" ORDER BY ");
-        sql.push_str(&sort_sql);
-    }
-
-    // LIMIT / OFFSET — SQLite requires LIMIT before OFFSET
-    match (query.limit, query.offset) {
-        (Some(limit), Some(offset)) => {
-            sql.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
+        sql.push_str("SELECT ");
+        if proj_sql.is_empty() {
+            sql.push('*');
+        } else {
+            sql.push_str(&proj_sql);
         }
-        (Some(limit), None) => {
+
+        sql.push_str(" FROM ");
+        sql.push_str(&query.table);
+
+        if !filter_sql.is_empty() {
+            sql.push_str(" WHERE ");
+            sql.push_str(&filter_sql);
+        }
+
+        if !group_sql.is_empty() {
+            sql.push_str(" GROUP BY ");
+            sql.push_str(&group_sql);
+        }
+
+        if !sort_sql.is_empty() {
+            sql.push_str(" ORDER BY ");
+            sql.push_str(&sort_sql);
+        }
+
+        if let Some(limit) = query.limit {
             sql.push_str(&format!(" LIMIT {}", limit));
         }
-        (None, Some(offset)) => {
-            // SQLite does not support OFFSET without LIMIT; use -1 for unlimited
-            sql.push_str(&format!(" LIMIT -1 OFFSET {}", offset));
+        
+        if let Some(offset) = query.offset {
+            sql.push_str(&format!(" OFFSET {}", offset));
         }
-        (None, None) => {}
-    }
 
-    (sql, parameters)
+        Self { executor, sql, parameters }
+    }
+}
+
+#[async_trait]
+impl PreparedFindQuery for SqlitePreparedFindQuery<'_> {
+    async fn execute(&self) -> DbResult<Box<dyn DbCursor>> {
+        let mut query = sqlx::query(&self.sql);
+        query = bind_values(query, &self.parameters);
+        let result = self.executor.fetch_all(query)
+            .await
+            .map_err(DbError::driver)?;
+        let stream = Box::pin(futures::stream::iter(result.into_iter().map(Ok)));
+        Ok(Box::new(SqliteDbCursor::new(stream)))
+    }
 }

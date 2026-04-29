@@ -1,82 +1,70 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use simple_db_core::{driver::{executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
+use sqlx::{MySql, Transaction};
 use tokio::sync::Mutex;
-use simple_db_core::{
-    driver::{DbExecutor, DbTransaction},
-    query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery},
-    types::{DbCursor, DbError, DbResult},
-};
-use sqlx::MySql;
 
-use super::executor::{exec_delete, exec_find, exec_insert, exec_update};
+use crate::{driver::executor::MySqlExecutor, queries::{find::MySqlPreparedFindQuery, insert::MySqlPreparedInsertQuery, update::MySqlPreparedUpdateQuery}};
 
-#[derive(Debug, thiserror::Error)]
-#[error("transaction has already been committed or rolled back")]
-struct TransactionConsumedError;
-
-/// A MySQL transaction wrapping a sqlx connection held open for the transaction's lifetime.
-///
-/// Uses `Mutex<Option<...>>` so that:
-/// - CRUD operations can borrow `&mut Transaction` while holding the lock.
-/// - `commit` / `rollback` consume the transaction by calling `take()`.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let tx = driver.begin().await?;
-/// tx.insert(Query::insert("orders").insert(row)).await?;
-/// tx.commit().await?;
-/// ```
-pub struct MysqlTransaction {
-    tx: Mutex<Option<sqlx::Transaction<'static, MySql>>>,
+pub struct MySqlTransaction {
+    executor: MySqlExecutor,
 }
 
-impl MysqlTransaction {
-    /// Wraps an open sqlx transaction in a [`MysqlTransaction`].
-    pub fn new(tx: sqlx::Transaction<'static, MySql>) -> Self {
-        Self { tx: Mutex::new(Some(tx)) }
+impl MySqlTransaction {
+    pub fn new(tx: Transaction<'static, MySql>) -> Self {
+        Self {
+            executor: MySqlExecutor::Transaction(Arc::new(Mutex::new(Some(tx)))),
+        }
     }
 }
 
 #[async_trait]
-impl DbExecutor for MysqlTransaction {
-    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_find(&mut **tx, query).await
+impl DbExecutor for MySqlTransaction {
+    fn prepare_find(&self, query: FindQuery) -> DbResult<Box<dyn PreparedFindQuery + '_>> {
+        Ok(Box::new(MySqlPreparedFindQuery::new(&self.executor, query)))
     }
 
-    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_insert(&mut **tx, query).await
+    fn prepare_insert(&self, query: InsertQuery) -> DbResult<Box<dyn PreparedInsertQuery + '_>> {
+        Ok(Box::new(MySqlPreparedInsertQuery::new(&self.executor, query)))
     }
 
-    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_update(&mut **tx, query).await
+    fn prepare_update(&self, query: UpdateQuery) -> DbResult<Box<dyn PreparedUpdateQuery + '_>> {
+        Ok(Box::new(MySqlPreparedUpdateQuery::new(&self.executor, query)))
     }
 
-    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        exec_delete(&mut **tx, query).await
+    fn prepare_delete(&self, query: simple_db_core::query::DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
+        Ok(Box::new(crate::queries::delete::MySqlPreparedDeleteQuery::new(&self.executor, query)))
     }
 }
 
 #[async_trait]
-impl DbTransaction for MysqlTransaction {
+impl DbTransaction for MySqlTransaction {
     async fn commit(&self) -> DbResult<()> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.take().ok_or_else(|| DbError::driver(TransactionConsumedError))?;
-        tx.commit().await.map_err(DbError::driver)
+        if let MySqlExecutor::Transaction(inner) = &self.executor {
+            let mut guard = inner.lock().await;
+            if let Some(tx) = guard.take() { // Extrai a transação, deixando None
+                tx.commit().await.map_err(DbError::driver)?;
+                Ok(())
+            } else {
+                Err(DbError::Internal("Transaction already closed".into()))
+            }
+        } else {
+            unreachable!("MySqlTransaction must always hold a Transaction variant")
+        }
     }
 
     async fn rollback(&self) -> DbResult<()> {
-        let mut guard = self.tx.lock().await;
-        if let Some(tx) = guard.take() {
-            tx.rollback().await.map_err(DbError::driver)?;
+        if let MySqlExecutor::Transaction(inner) = &self.executor {
+            let mut guard = inner.lock().await;
+            if let Some(tx) = guard.take() {
+                tx.rollback().await.map_err(DbError::driver)?;
+                Ok(())
+            } else {
+                Err(DbError::Internal("Transaction already closed".into()))
+            }
+        } else {
+            unreachable!()
         }
-        Ok(())
     }
 }

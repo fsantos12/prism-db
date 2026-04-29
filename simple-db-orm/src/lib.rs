@@ -1,3 +1,5 @@
-pub mod entity;
+mod entity;
+mod cursor;
 
-pub use entity::{DbEntity, DbEntityTrait, TrackingState};
+pub use entity::{DbEntityTrait, DbEntity, TrackingState};
+pub use cursor::DbCursorEntityExt;

@@ -1,49 +1,21 @@
-use crate::types::DbValue;
+use async_trait::async_trait;
 
-/// INSERT query builder for adding data to a collection.
-///
-/// Supports:
-/// - Single row insertion via `.insert()`
-/// - Bulk insertion via `.bulk_insert()` for multiple rows
-/// - Automatic type conversion via `Into<DbValue>`
-///
-/// # Example
-///
-/// ```rust
-/// use simple_db_core::query::Query;
-///
-/// // Insert a single row (homogeneous value types)
-/// let query = Query::insert("users")
-///     .insert(vec![("name", "Alice"), ("email", "alice@example.com")]);
-///
-/// // Bulk insert multiple rows
-/// let query = Query::insert("users")
-///     .insert(vec![("name", "Alice"), ("email", "alice@example.com")])
-///     .insert(vec![("name", "Bob"), ("email", "bob@example.com")]);
-/// ```
-/// 
-/// # Column/Value Format
-///
-/// Rows are specified as iterables of `(column_name, value)` pairs:
-/// - Column names: `&str` or `String`
-/// - Values: implement `Into<DbValue>` (i32, f64, String, etc.)
+use crate::types::{DbResult, DbValue};
+
 #[derive(Debug, Clone)]
 pub struct InsertQuery {
-    pub collection: String,
+    pub table: String,
     pub values: Vec<Vec<(String, DbValue)>>,
 }
 
 impl InsertQuery {
-    /// Creates a new insert query for the given collection.
-    pub fn new<S: Into<String>>(collection: S) -> Self {
+    pub fn new(table: impl Into<String>) -> Self {
         Self {
-            collection: collection.into(),
+            table: table.into(),
             values: Vec::new(),
         }
     }
 
-    /// Inserts a single row. Values are automatically converted to DbValue.
-    /// Multiple calls append additional rows.
     pub fn insert<I, K, V>(mut self, row: I) -> Self
     where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
         let db_row: Vec<(String, DbValue)> = row.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
@@ -51,7 +23,6 @@ impl InsertQuery {
         self
     }
 
-    /// Batch inserts multiple rows at once. Each row is an iterable of (column, value) pairs.
     pub fn bulk_insert<I, R, K, V>(mut self, rows: I) -> Self
     where I: IntoIterator<Item = R>, R: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
         for row in rows {
@@ -60,4 +31,9 @@ impl InsertQuery {
         }
         self
     }
+}
+
+#[async_trait]
+pub trait PreparedInsertQuery: Send + Sync {
+    async fn execute(&self) -> DbResult<u64>;
 }

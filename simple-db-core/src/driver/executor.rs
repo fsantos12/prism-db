@@ -1,43 +1,27 @@
 use async_trait::async_trait;
 
-use crate::{query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery}, types::{DbCursor, DbResult}};
+use crate::{query::{DeleteQuery, FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbCursor, DbResult}};
 
-/// Common CRUD interface shared by both pool drivers and transaction handles.
-///
-/// Any type that can execute queries implements this trait — whether it is a
-/// connection pool ([`DbDriver`](crate::DbDriver)) or an open transaction
-/// ([`DbTransaction`](crate::DbTransaction)). Application code that does not
-/// need to control transaction boundaries should accept `&dyn DbExecutor`.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// async fn find_active_users(db: &dyn DbExecutor) -> DbResult<Box<dyn DbCursor>> {
-///     db.find(Query::find("users").filter(|b| b.eq("active", true))).await
-/// }
-///
-/// // Works with a pool:
-/// find_active_users(driver.as_ref()).await?;
-///
-/// // Works inside a transaction:
-/// driver.transaction(|tx| async move {
-///     find_active_users(tx.as_ref()).await?;
-///     Ok(())
-/// }).await?;
-/// ```
 #[async_trait]
 pub trait DbExecutor: Send + Sync {
-    /// Executes a SELECT query and returns a streaming cursor over the matching rows.
-    ///
-    /// Returns `Ok` with an empty cursor when no rows match — never `Err(NotFound)`.
-    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>>;
+    // --- Query Builders ---
+    fn prepare_find(&self, query: FindQuery) -> DbResult<Box<dyn PreparedFindQuery + '_>>;
+    async fn find(&self, query: FindQuery) -> DbResult<Box<dyn DbCursor>>{
+        self.prepare_find(query)?.execute().await
+    }
 
-    /// Executes an INSERT query. Returns the number of rows inserted.
-    async fn insert(&self, query: InsertQuery) -> DbResult<u64>;
+    fn prepare_insert(&self, query: InsertQuery) -> DbResult<Box<dyn PreparedInsertQuery + '_>>;
+    async fn insert(&self, query: InsertQuery) -> DbResult<u64> {
+        self.prepare_insert(query)?.execute().await
+    }
 
-    /// Executes an UPDATE query. Returns the number of rows affected.
-    async fn update(&self, query: UpdateQuery) -> DbResult<u64>;
+    fn prepare_update(&self, query: UpdateQuery) -> DbResult<Box<dyn PreparedUpdateQuery + '_>>;
+    async fn update(&self, query: UpdateQuery) -> DbResult<u64> {
+        self.prepare_update(query)?.execute().await
+    }
 
-    /// Executes a DELETE query. Returns the number of rows deleted.
-    async fn delete(&self, query: DeleteQuery) -> DbResult<u64>;
+    fn prepare_delete(&self, query: DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>>;
+    async fn delete(&self, query: DeleteQuery) -> DbResult<u64> {
+        self.prepare_delete(query)?.execute().await
+    }
 }

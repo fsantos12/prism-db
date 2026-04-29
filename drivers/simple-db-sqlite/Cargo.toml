@@ -8,12 +8,17 @@ license.workspace = true
 # --- Internal ---
 simple-db-core = { workspace = true }
 
-thiserror = { workspace = true }
+# --- Types & Utils---
+chrono       = { workspace = true }
+rust_decimal = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+uuid         = { workspace = true }
 
 # --- SQL ---
-sqlx = { workspace = true, features = ["sqlite"] }
+sqlx         = { workspace = true, features = ["sqlite", "rust_decimal"] }
 
 # --- Async & Runtime ---
-tokio = { workspace = true }
+tokio       = { workspace = true }
 async-trait = { workspace = true }
-futures = { workspace = true }
+futures     = { workspace = true }

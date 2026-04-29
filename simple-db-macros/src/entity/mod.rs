@@ -2,58 +2,61 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Ident, LitStr, Type};
 
-struct ParsedField {
+struct Field {
     ident: Ident,
-    ty: Type,
-    column: String,
+    r#type: Type,
+    column_name: String,
     is_primary_key: bool,
     is_ignored: bool,
 }
 
-/// Entry point called from `lib.rs`.
 pub fn derive(input: DeriveInput) -> TokenStream {
-    let collection = parse_collection_name(&input);
+    let table_name = parse_table_name(&input);
     let fields = parse_fields(&input);
 
     if fields.iter().filter(|f| f.is_primary_key).count() == 0 {
         panic!("DbEntity derive requires at least one field with #[db(primary_key)]");
     }
 
-    generate_impl(&input.ident, &collection, &fields)
+    generate_impl(&input.ident, &table_name, &fields)
 }
 
-fn parse_collection_name(input: &DeriveInput) -> String {
+fn parse_table_name(input: &DeriveInput) -> String {
     for attr in &input.attrs {
         if !attr.path().is_ident("db") {
             continue;
         }
-        let mut collection: Option<String> = None;
+
+        let mut table_name: Option<String> = None;
+
         let _ = attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("collection") {
-                let value: LitStr = meta.value()?.parse()?;
-                collection = Some(value.value());
+            if meta.path.is_ident("table") {
+                let value: syn::LitStr = meta.value()?.parse()?;
+                table_name = Some(value.value());
             }
             Ok(())
         });
-        if let Some(c) = collection {
-            return c;
+
+        if let Some(name) = table_name {
+            return name;
         }
     }
-    panic!("DbEntity derive requires #[db(collection = \"table_name\")] on the struct");
+    panic!("No table name specified for entity. Please use #[db(table = \"table_name\")] on the struct.");
 }
 
-fn parse_fields(input: &DeriveInput) -> Vec<ParsedField> {
+fn parse_fields(input: &DeriveInput) -> Vec<Field> {
     let Data::Struct(data) = &input.data else {
         panic!("DbEntity can only be derived for structs");
     };
+
     let Fields::Named(named) = &data.fields else {
         panic!("DbEntity requires named fields");
     };
 
     named.named.iter().map(|field| {
         let ident = field.ident.clone().unwrap();
-        let ty = field.ty.clone();
-        let mut column = ident.to_string();
+        let r#type = field.ty.clone();
+        let mut column_name = ident.to_string();
         let mut is_primary_key = false;
         let mut is_ignored = false;
 
@@ -68,66 +71,74 @@ fn parse_fields(input: &DeriveInput) -> Vec<ParsedField> {
                     is_ignored = true;
                 } else if meta.path.is_ident("column") {
                     let value: LitStr = meta.value()?.parse()?;
-                    column = value.value();
+                    column_name = value.value();
                 }
                 Ok(())
             });
         }
 
-        ParsedField { ident, ty, column, is_primary_key, is_ignored }
+        Field { ident, r#type, column_name, is_primary_key, is_ignored }
     }).collect()
 }
 
-fn generate_impl(struct_ident: &Ident, collection: &str, fields: &[ParsedField]) -> TokenStream {
-    let pk_entries = fields.iter().filter(|f| f.is_primary_key).map(|f| {
+fn generate_impl(struct_ident: &Ident, table: &str, fields: &[Field]) -> TokenStream {
+    let pk_fields: Vec<&Field> = fields.iter().filter(|f| f.is_primary_key).collect();
+    let valid_fields: Vec<&Field> = fields.iter().filter(|f| !f.is_ignored).collect();
+
+    let pks = pk_fields.iter().map(|f| {
         let ident = &f.ident;
-        let col = &f.column;
+        let col_name = &f.column_name;
         quote! {
-            (#col, ::simple_db::types::DbValue::from(self.#ident.clone()))
+            (#col_name, ::simple_db_core::types::DbValue::from(self.#ident.clone()))
         }
     });
 
-    let to_db_entries = fields.iter().filter(|f| !f.is_ignored).map(|f| {
+    let to_db_fields = valid_fields.iter().map(|f| {
         let ident = &f.ident;
-        let col = &f.column;
+        let col_name = &f.column_name;
         quote! {
-            (#col, ::simple_db::types::DbValue::from(self.#ident.clone()))
+            (#col_name, ::simple_db_core::types::DbValue::from(self.#ident.clone()))
         }
     });
 
     let from_db_fields = fields.iter().map(|f| {
         let ident = &f.ident;
         if f.is_ignored {
-            quote! { #ident: ::std::default::Default::default() }
-        } else {
-            let col = &f.column;
-            let ty = &f.ty;
             quote! {
-                #ident: row.get_by_name(#col)
-                    .and_then(|v| {
-                        <#ty as ::std::convert::TryFrom<::simple_db::types::DbValue>>::try_from(v).ok()
-                    })
-                    .unwrap_or_default()
+                #ident: ::std::default::Default::default()
+            }
+        } else {
+            let col_name = &f.column_name;
+            let ty = &f.r#type;
+            quote! {
+                #ident: row.get_by_name(#col_name)
+                    .unwrap_or_else(|| panic!("Column '{}' not found", #col_name))
+                    .cast::<#ty>()
+                    .unwrap_or_else(|| panic!("Failed to cast column '{}'", #col_name))
             }
         }
     });
 
     quote! {
-        #[automatically_derived]
-        impl ::simple_db::DbEntityTrait for #struct_ident {
-            fn collection_name() -> &'static str {
-                #collection
+        #[::async_trait::async_trait]
+        impl ::simple_db_orm::DbEntityTrait for #struct_ident {
+            fn table_name() -> &'static str {
+                #table
             }
 
-            fn primary_key(&self) -> ::std::vec::Vec<(&'static str, ::simple_db::types::DbValue)> {
-                vec![#(#pk_entries),*]
+            fn primary_key(&self) -> ::std::vec::Vec<(&'static str, ::simple_db_core::types::DbValue)> {
+                ::std::vec![
+                    #(#pks),*
+                ]
             }
 
-            fn to_db(&self) -> ::std::vec::Vec<(&'static str, ::simple_db::types::DbValue)> {
-                vec![#(#to_db_entries),*]
+            fn to_db(&self) -> ::std::vec::Vec<(&'static str, ::simple_db_core::types::DbValue)> {
+                ::std::vec![
+                    #(#to_db_fields),*
+                ]
             }
 
-            fn from_db(row: &dyn ::simple_db::types::DbRow) -> Self {
+            fn from_db(row: &dyn ::simple_db_core::types::DbRow) -> Self {
                 Self {
                     #(#from_db_fields),*
                 }

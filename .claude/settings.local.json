@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo run *)",
+      "Bash(grep -E \"ops/sec|rows/sec|latency|ms/op|ms/row|throughput|ms$\")",
+      "Bash(cargo check *)",
+      "Bash(grep -E \"\\\\.rs$\")",
+      "Bash(cargo test *)",
+      "Bash(cargo build *)"
+    ]
+  }
+}

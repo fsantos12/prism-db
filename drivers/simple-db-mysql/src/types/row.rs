@@ -4,22 +4,17 @@ use serde_json::Value as JsonValue;
 use simple_db_core::types::{DbRow, DbValue};
 use sqlx::{mysql::MySqlRow, Column, Row, TypeInfo, ValueRef};
 
-/// Adapter that wraps a [`MySqlRow`] and exposes it through the [`DbRow`] interface.
-///
-/// Maps MySQL type names to the appropriate [`DbValue`] variants.
-/// Unknown types are mapped to NULL.
-pub struct MysqlDbRow {
+pub(crate) struct MySqlDbRow {
     row: MySqlRow,
 }
 
-impl MysqlDbRow {
-    /// Creates a new adapter wrapping the given raw MySQL row.
+impl MySqlDbRow {
     pub fn new(row: MySqlRow) -> Self {
         Self { row }
     }
 }
 
-impl DbRow for MysqlDbRow {
+impl DbRow for MySqlDbRow {
     fn get_by_index(&self, index: usize) -> Option<DbValue> {
         let raw_value = self.row.try_get_raw(index).ok()?;
         if raw_value.is_null() { return Some(DbValue::from_null()); }
@@ -29,89 +24,89 @@ impl DbRow for MysqlDbRow {
             // --- integers ---
             "TINYINT" => {
                 let val: i8 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i8(val))
+                Some(DbValue::from(val))
             }
             "SMALLINT" => {
                 let val: i16 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i16(val))
+                Some(DbValue::from(val))
             }
             "MEDIUMINT" | "INT" | "INTEGER" => {
                 let val: i32 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i32(val))
+                Some(DbValue::from(val))
             }
             "BIGINT" => {
                 let val: i64 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_i64(val))
+                Some(DbValue::from(val))
             }
             "TINYINT UNSIGNED" => {
                 let val: u8 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_u8(val))
+                Some(DbValue::from(val))
             }
             "SMALLINT UNSIGNED" => {
                 let val: u16 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_u16(val))
+                Some(DbValue::from(val))
             }
             "MEDIUMINT UNSIGNED" | "INT UNSIGNED" | "INTEGER UNSIGNED" => {
                 let val: u32 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_u32(val))
+                Some(DbValue::from(val))
             }
             "BIGINT UNSIGNED" => {
                 let val: u64 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_u64(val))
+                Some(DbValue::from(val))
             }
 
             // --- floats ---
             "FLOAT" => {
                 let val: f32 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_f32(val))
+                Some(DbValue::from(val))
             }
             "DOUBLE" => {
                 let val: f64 = self.row.try_get(index).ok()?;
-                Some(DbValue::from_f64(val))
+                Some(DbValue::from(val))
             }
 
             // --- decimal ---
             "DECIMAL" | "NEWDECIMAL" => {
                 let val: Decimal = self.row.try_get(index).ok()?;
-                Some(DbValue::from_decimal(val))
+                Some(DbValue::from(val))
             }
 
             // --- boolean ---
             "BOOL" | "BOOLEAN" => {
                 let val: bool = self.row.try_get(index).ok()?;
-                Some(DbValue::from_bool(val))
+                Some(DbValue::from(val))
             }
 
             // --- binary ---
             "BLOB" | "TINYBLOB" | "MEDIUMBLOB" | "LONGBLOB" | "VARBINARY" | "BINARY" => {
                 let val: Vec<u8> = self.row.try_get(index).ok()?;
-                Some(DbValue::from_bytes(val))
+                Some(DbValue::from(val))
             }
 
             // --- text ---
             "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDIUMTEXT" | "LONGTEXT" | "ENUM" | "SET" => {
                 let val: String = self.row.try_get(index).ok()?;
-                Some(DbValue::from_string(val))
+                Some(DbValue::from(val))
             }
 
             // --- json ---
             "JSON" => {
                 let val: JsonValue = self.row.try_get(index).ok()?;
-                Some(DbValue::from_json(val))
+                Some(DbValue::from(val))
             }
 
             // --- date / time ---
             "DATE" => {
                 let val: NaiveDate = self.row.try_get(index).ok()?;
-                Some(DbValue::from_date(val))
+                Some(DbValue::from(val))
             }
             "TIME" => {
                 let val: NaiveTime = self.row.try_get(index).ok()?;
-                Some(DbValue::from_time(val))
+                Some(DbValue::from(val))
             }
             "DATETIME" | "TIMESTAMP" => {
                 let val: NaiveDateTime = self.row.try_get(index).ok()?;
-                Some(DbValue::from_timestamp(val))
+                Some(DbValue::from(val))
             }
 
             _ => Some(DbValue::from_null()),
