@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{driver::{driver::DbDriver, executor::DbExecutor}, query::{DeleteQuery, FindQuery, InsertQuery, UpdateQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery}, types::DbResult};
+use crate::{driver::{driver::DbDriver, executor::DbExecutor, transaction::DbTransaction}, query::{DeleteQuery, FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::DbResult};
 
 /// The primary entry point for running queries against a database.
 ///
@@ -35,5 +35,16 @@ impl DbExecutor for DbContext {
 
     fn prepare_delete(&self, query: DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
         self.driver.prepare_delete(query)
+    }
+}
+
+#[async_trait]
+impl DbDriver for DbContext {
+    async fn begin_transaction(&self) -> DbResult<Arc<dyn DbTransaction>> {
+        self.driver.begin_transaction().await
+    }
+
+    async fn ping(&self) -> DbResult<()> {
+        self.driver.ping().await
     }
 }
