@@ -2,11 +2,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use sqlx::{Sqlite, SqlitePool, Transaction, sqlite::{SqliteArguments, SqliteQueryResult}, query::Query};
 
-/// Executes sqlx queries against either a connection pool or an active transaction.
+/// Execution context that abstracts over pool and transaction.
 ///
-/// Internally wraps either a `SqlitePool` for general query execution or an
-/// `Arc<Mutex<Option<Transaction<Sqlite>>>>` for executing within a transaction.
-/// This enum allows query builders to remain agnostic about the execution context.
+/// Allows query builders to remain agnostic about whether queries run against
+/// a connection pool or an active transaction.
 pub(crate) enum SqliteExecutor {
     /// Executes queries against the connection pool.
     Pool(SqlitePool),
@@ -15,7 +14,7 @@ pub(crate) enum SqliteExecutor {
 }
 
 impl SqliteExecutor {
-    /// Executes a query and returns the result (affected row count, etc.).
+    /// Executes a query against the pool or transaction.
     pub(crate) async fn execute<'q>(&self, query: Query<'q, Sqlite, SqliteArguments<'q>>) -> sqlx::Result<SqliteQueryResult> {
         match self {
             SqliteExecutor::Pool(pool) => query.execute(pool).await,
@@ -30,7 +29,7 @@ impl SqliteExecutor {
         }
     }
 
-    /// Fetches all rows matching the query.
+    /// Fetches all result rows.
     pub(crate) async fn fetch_all<'q>(&self, query: Query<'q, Sqlite, SqliteArguments<'q>>) -> sqlx::Result<Vec<sqlx::sqlite::SqliteRow>> {
         match self {
             SqliteExecutor::Pool(pool) => query.fetch_all(pool).await,

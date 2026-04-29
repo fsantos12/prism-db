@@ -2,10 +2,10 @@ use async_trait::async_trait;
 
 use crate::{query::{FilterBuilder, FilterDefinition, GroupBuilder, GroupDefinition, ProjectionBuilder, ProjectionDefinition, SortBuilder, SortDefinition}, types::{DbCursor, DbResult}};
 
-/// A `SELECT` query with optional projections, filters, sorting, grouping, limit, and offset.
+/// A SELECT query builder.
 ///
-/// Build one via the fluent methods or the `with_*_builder` closures, then hand it to a
-/// [`DbExecutor`](crate::driver::DbExecutor) to run it.
+/// Supports projections, filtering, sorting, grouping, limit, and offset.
+/// Pass to [`DbExecutor::find`](crate::driver::DbExecutor::find) to execute.
 #[derive(Debug, Clone)]
 pub struct FindQuery {
     /// Target table name.
@@ -25,7 +25,7 @@ pub struct FindQuery {
 }
 
 impl FindQuery {
-    /// Creates a new query targeting `table` with all optional parts unset.
+    /// Creates a new SELECT query for the given table.
     pub fn new(table: impl Into<String>) -> Self {
         Self {
             table: table.into(),
@@ -38,13 +38,13 @@ impl FindQuery {
         }
     }
 
-    /// Appends a pre-built [`ProjectionDefinition`] to the `SELECT` list.
+    /// Appends projection columns to the SELECT list.
     pub fn project(mut self, projections: ProjectionDefinition) -> Self {
         self.projections.extend(projections);
         self
     }
 
-    /// Builds the projection list via a closure and appends it.
+    /// Builds and appends SELECT columns via a closure.
     pub fn with_projection_builder<F>(mut self, build: F) -> Self
     where F: FnOnce(ProjectionBuilder) -> ProjectionBuilder,
     {
@@ -52,13 +52,13 @@ impl FindQuery {
         self
     }
 
-    /// Appends a pre-built [`FilterDefinition`] to the `WHERE` clause.
+    /// Appends WHERE conditions.
     pub fn filter(mut self, filters: FilterDefinition) -> Self {
         self.filters.extend(filters);
         self
     }
 
-    /// Builds the filter list via a closure and appends it.
+    /// Builds and appends WHERE conditions via a closure.
     pub fn with_filter_builder<F>(mut self, build: F) -> Self
     where F: FnOnce(FilterBuilder) -> FilterBuilder,
     {
@@ -66,13 +66,13 @@ impl FindQuery {
         self
     }
 
-    /// Appends a pre-built [`SortDefinition`] to the `ORDER BY` clause.
+    /// Appends ORDER BY directives.
     pub fn order_by(mut self, sorts: SortDefinition) -> Self {
         self.sorts.extend(sorts);
         self
     }
 
-    /// Builds the sort list via a closure and appends it.
+    /// Builds and appends ORDER BY directives via a closure.
     pub fn with_sort_builder<F>(mut self, build: F) -> Self
     where F: FnOnce(SortBuilder) -> SortBuilder,
     {
@@ -80,13 +80,13 @@ impl FindQuery {
         self
     }
 
-    /// Appends a pre-built [`GroupDefinition`] to the `GROUP BY` clause.
+    /// Appends GROUP BY columns.
     pub fn group_by(mut self, groups: GroupDefinition) -> Self {
         self.groups.extend(groups);
         self
     }
 
-    /// Builds the group list via a closure and appends it.
+    /// Builds and appends GROUP BY columns via a closure.
     pub fn with_group_builder<F>(mut self, build: F) -> Self
     where F: FnOnce(GroupBuilder) -> GroupBuilder,
     {
@@ -107,12 +107,10 @@ impl FindQuery {
     }
 }
 
-/// A compiled, ready-to-execute version of a [`FindQuery`].
-///
-/// Obtained from [`DbExecutor::prepare_find`](crate::driver::DbExecutor::prepare_find).
+/// A compiled, ready-to-execute SELECT query.
 #[async_trait]
 pub trait PreparedFindQuery: Send + Sync {
-    /// Executes the prepared query and returns a cursor over the result rows.
+    /// Executes the query and returns a cursor over result rows.
     async fn execute(&self) -> DbResult<Box<dyn DbCursor>>;
 }
 

@@ -6,11 +6,10 @@ use tokio::sync::Mutex;
 
 use crate::{driver::{driver::DbDriver, executor::DbExecutor}, types::{DbError, DbResult}};
 
-/// A database transaction supporting ACID semantics.
+/// A database transaction with ACID semantics.
 ///
-/// A transaction is an executor that can be committed or rolled back atomically.
-/// Most applications use the [`DbTransactionExt::transaction`] helper method rather than
-/// directly managing this trait.
+/// An executor that can be committed or rolled back atomically.
+/// Use [`DbTransactionExt::transaction`] for automatic commit/rollback logic.
 #[async_trait]
 pub trait DbTransaction: DbExecutor {
     /// Commits the transaction, applying all changes to the database.
@@ -20,7 +19,7 @@ pub trait DbTransaction: DbExecutor {
     async fn rollback(&self) -> DbResult<()>;
 }
 
-/// Extension trait providing convenience methods on drivers to run transactional blocks.
+/// Convenience extension for running transactional blocks.
 #[async_trait]
 pub trait DbTransactionExt {
     /// Runs the closure `f` in a new transaction, committing on success and rolling back on error.
@@ -37,10 +36,9 @@ pub trait DbTransactionExt {
     where F: FnOnce(Arc<dyn DbTransaction>) -> Fut + Send, Fut: Future<Output = DbResult<T>> + Send, T: Send;
 }
 
-/// Backend-neutral helper for safely extracting and executing an action on a shared transaction.
+/// Generic helper for safely closing a transaction across all driver implementations.
 ///
-/// This generic function handles the Mutex acquire, Option extraction, and error wrapping
-/// needed across all driver implementations.
+/// Handles Mutex acquisition, Option extraction, and error wrapping consistently.
 pub async fn close_transaction<T, F, Fut, E>(
     shared_tx: &Arc<Mutex<Option<T>>>,
     closed_error: &'static str,

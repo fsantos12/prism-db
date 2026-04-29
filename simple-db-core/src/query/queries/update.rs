@@ -1,20 +1,12 @@
-//! Update query builder and trait for database record modification operations.
+//! UPDATE query builder.
 
 use async_trait::async_trait;
 
 use crate::{query::{FilterBuilder, FilterDefinition}, types::{DbResult, DbValue}};
 
-/// Represents a query to modify existing records in a table.
+/// An UPDATE query builder.
 ///
-/// This query builder allows you to specify which columns to update and
-/// which records to target via filter conditions.
-///
-/// # Example
-/// ```ignore
-/// let query = UpdateQuery::new("users")
-///     .set("status", "active")
-///     .with_filter_builder(|f| f.eq("id", 123));
-/// ```
+/// Specify column updates and filter conditions to target specific rows.
 #[derive(Debug, Clone)]
 pub struct UpdateQuery {
     /// The table whose records are being modified.
@@ -26,7 +18,7 @@ pub struct UpdateQuery {
 }
 
 impl UpdateQuery {
-    /// Creates a new `UpdateQuery` for the specified table.
+    /// Creates a new UPDATE query for the given table.
     pub fn new(table: impl Into<String>) -> Self {
         Self {
             table: table.into(),
@@ -35,19 +27,19 @@ impl UpdateQuery {
         }
     }
 
-    /// Adds a column update to the query.
+    /// Specifies a column update.
     pub fn set<F: Into<String>, V: Into<DbValue>>(mut self, field: F, value: V) -> Self {
         self.updates.push((field.into(), value.into()));
         self
     }
 
-    /// Adds pre-constructed filter conditions to the query.
+    /// Appends filter conditions.
     pub fn filter(mut self, filters: FilterDefinition) -> Self {
         self.filters.extend(filters);
         self
     }
 
-    /// Builds filter conditions using a closure and adds them to the query.
+    /// Builds and appends filter conditions via a closure.
     pub fn with_filter_builder<F>(mut self, build: F) -> Self
     where F: FnOnce(FilterBuilder) -> FilterBuilder,
     {
@@ -56,13 +48,10 @@ impl UpdateQuery {
     }
 }
 
-/// Driver-specific representation of a compiled `UpdateQuery`.
-///
-/// This trait is implemented by database drivers to execute the query
-/// in their respective SQL dialects.
+/// Compiled, ready-to-execute UPDATE query.
 #[async_trait]
 pub trait PreparedUpdateQuery: Send + Sync {
-    /// Executes the update query and returns the number of modified rows.
+    /// Executes the query and returns the number of modified rows.
     async fn execute(&self) -> DbResult<u64>;
 }
 

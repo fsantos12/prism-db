@@ -15,23 +15,19 @@ pub trait DbEntityTrait: Clone {
     /// Returns the database table name for this entity type.
     fn table_name() -> &'static str;
 
-    /// Returns the primary key field names and current values as a vector of tuples.
+    /// Returns the primary key fields and their current values.
     ///
-    /// Used for change tracking and generating WHERE clauses on UPDATE/DELETE.
+    /// Used for change tracking and WHERE clause generation.
     fn primary_key(&self) -> Vec<(&'static str, DbValue)>;
 
-    /// Serializes the entity into database field names and values.
-    ///
-    /// This includes the primary key fields. Fields in this list matching the primary
-    /// key names are excluded from UPDATE queries by the change tracking logic.
+    /// Serializes the entity to database field names and values.
     fn to_db(&self) -> Vec<(&'static str, DbValue)>;
 
     /// Deserializes a database row into an entity instance.
     fn from_db(row: &dyn DbRow) -> Self;
 
-    /// Generates a filter for this entity's primary key.
+    /// Generates a WHERE filter for this entity's primary key.
     ///
-    /// Used by `save()` and `delete()` to target the correct row in the database.
     /// Overridable for complex primary key scenarios.
     fn primary_key_filter(&self) -> FilterDefinition {
         use simple_db_core::query::FilterBuilder;
@@ -42,11 +38,10 @@ pub trait DbEntityTrait: Clone {
     }
 }
 
-/// Entity change tracking state machine.
+/// Entity change tracking state.
 ///
-/// - **Untracked**: A new entity created in memory, not yet persisted.
-/// - **Tracked**: An entity loaded from the database; change tracking compares against this original.
-/// - **Detached**: A read-only entity (loaded via `from_db_readonly()`) or a deleted entity.
+/// Tracks whether an entity is new (Untracked), loaded from the database (Tracked),
+/// or read-only/deleted (Detached).
 #[derive(Debug, Clone)]
 pub enum TrackingState<T> {
     /// Entity is new and has never been saved.
@@ -58,7 +53,7 @@ pub enum TrackingState<T> {
 }
 
 impl<T> TrackingState<T> {
-    /// Returns `true` if the entity is tracked.
+    /// Returns `true` if the entity is tracked (loaded from database).
     pub fn is_tracked(&self) -> bool {
         matches!(self, TrackingState::Tracked(_))
     }
@@ -82,10 +77,10 @@ impl<T> TrackingState<T> {
     }
 }
 
-/// A wrapper around an entity with change tracking and persistence support.
+/// Entity wrapper with automatic change tracking and persistence.
 ///
-/// `DbEntity<T>` tracks whether an entity is new, modified, or read-only,
-/// and provides methods to `save()` and `delete()` it from the database.
+/// Tracks state transitions (new → saved → tracked or deleted) and provides
+/// automatic INSERT/UPDATE/DELETE generation based on changes.
 ///
 /// # Example
 ///
@@ -113,9 +108,9 @@ impl<T: DbEntityTrait> DbEntity<T> {
         }
     }
 
-    /// Creates an entity from a database row with tracking enabled.
+    /// Creates a loaded entity with automatic change tracking.
     ///
-    /// The returned entity tracks the loaded values for change detection.
+    /// Stores the loaded values for detecting field changes on `save()`.
     pub fn from_db(row: &dyn DbRow) -> Self {
         let entity = T::from_db(row);
         Self {
@@ -126,7 +121,7 @@ impl<T: DbEntityTrait> DbEntity<T> {
 
     /// Creates a read-only entity from a database row.
     ///
-    /// Read-only entities cannot be saved or deleted (operations return `Ok(())`).
+    /// Calling `save()` or `delete()` on a detached entity is a no-op.
     pub fn from_db_readonly(row: &dyn DbRow) -> Self {
         let entity = T::from_db(row);
         Self {
@@ -170,14 +165,9 @@ impl<T: DbEntityTrait> DbEntity<T> {
         self.state.is_detached()
     }
 
-    /// Persists the entity to the database.
+    /// Persists the entity: INSERT if new, UPDATE if modified, no-op if detached.
     ///
-    /// Behavior depends on the current state:
-    /// - **Untracked**: Executes an INSERT query.
-    /// - **Tracked**: Compares current values against originals and executes an UPDATE for changed fields.
-    /// - **Detached**: No-op (returns `Ok(())`).
-    ///
-    /// After successful save, untracked entities become tracked.
+    /// After a successful save, untracked entities transition to tracked.
     pub async fn save(&mut self, executor: &dyn DbExecutor) -> DbResult<()> where T: PartialEq {
         match &self.state {
             TrackingState::Untracked => {
@@ -222,10 +212,7 @@ impl<T: DbEntityTrait> DbEntity<T> {
         }
     }
 
-    /// Deletes the entity from the database.
-    ///
-    /// Only tracked entities can be deleted. Detached or untracked entities are no-ops.
-    /// After successful deletion, the entity becomes detached.
+    /// Deletes tracked entities from the database; no-op for detached/untracked.
     pub async fn delete(&mut self, executor: &dyn DbExecutor) -> DbResult<()> {
         if self.is_tracked() {
             let filter = self.value.primary_key_filter();

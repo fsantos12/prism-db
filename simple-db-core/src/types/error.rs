@@ -1,29 +1,31 @@
-/// All errors that can be returned by the database layer.
+/// Database operation errors.
+///
+/// Distinguishes type mismatches, missing columns, and driver-level failures.
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
-    /// The stored column type did not match the requested Rust type.
+    /// Type mismatch between expected and actual column value.
     #[error("type mismatch: expected {expected}, found {found}")]
     TypeMismatch { expected: String, found: String },
 
-    /// A column was accessed by an index that is out of range for this row.
+    /// Column index exceeds the row's column count.
     #[error("column index out of bounds: {0}")]
     ColumnIndexOutOfBounds(usize),
 
-    /// A column was accessed by name but no column with that name exists in this row.
+    /// No column exists with the requested name.
     #[error("column not found: '{0}'")]
     ColumnNotFound(String),
 
-    /// An error propagated from the underlying database driver.
+    /// Error from the underlying database driver.
     #[error("driver error: {0}")]
     Driver(#[source] Box<dyn std::error::Error + Send + Sync>),
 
-    /// An unexpected internal error that should not occur during normal operation.
+    /// Unexpected internal error (should not occur).
     #[error("internal error: {0}")]
     Internal(String),
 }
 
 impl DbError {
-    /// Wraps any driver-level error into [`DbError::Driver`].
+    /// Wraps a driver error.
     pub fn driver(e: impl std::error::Error + Send + Sync + 'static) -> Self {
         DbError::Driver(Box::new(e))
     }

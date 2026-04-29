@@ -1,9 +1,6 @@
-//! # simple-db-macros
+//! Procedural macros for the simple-db ORM.
 //!
-//! Procedural macros for simple-db ORM.
-//!
-//! Provides:
-//! - `#[derive(DbEntity)]` for automatically implementing `DbEntityTrait`
+//! Provides `#[derive(DbEntity)]` for automatic `DbEntityTrait` implementation.
 //!
 //! # Example
 //!
@@ -37,13 +34,10 @@ mod entity;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
-/// Derives the `DbEntityTrait` for a struct.
+/// Derives `DbEntityTrait` for a struct.
 ///
-/// The struct must have at least one field marked with `#[db(primary_key)]`.
-///
-/// # Panics
-///
-/// Panics if no table name is specified or no primary key field is defined.
+/// At least one field must be marked with `#[db(primary_key)]`.
+/// A table name must be specified via `#[db(table = "...")]`.
 #[proc_macro_derive(DbEntity, attributes(db))]
 pub fn derive_db_entity(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

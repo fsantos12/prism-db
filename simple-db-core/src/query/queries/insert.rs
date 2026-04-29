@@ -2,10 +2,9 @@ use async_trait::async_trait;
 
 use crate::types::{DbResult, DbValue};
 
-/// A query that inserts one or more rows into a database table.
+/// An INSERT query builder.
 ///
-/// Each row is a list of `(column_name, value)` pairs. All rows in a single
-/// `InsertQuery` must share the same column schema.
+/// Each row must have the same column schema.
 #[derive(Debug, Clone)]
 pub struct InsertQuery {
     /// Target table name.
@@ -15,7 +14,7 @@ pub struct InsertQuery {
 }
 
 impl InsertQuery {
-    /// Creates a new `InsertQuery` targeting `table` with no rows yet.
+    /// Creates a new INSERT query for the given table.
     pub fn new(table: impl Into<String>) -> Self {
         Self {
             table: table.into(),
@@ -23,8 +22,7 @@ impl InsertQuery {
         }
     }
 
-    /// Appends a single row. `row` is any iterable of `(column, value)` pairs
-    /// whose key and value types convert into `String` and [`DbValue`] respectively.
+    /// Appends a single row to the query.
     pub fn insert<I, K, V>(mut self, row: I) -> Self
     where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
         let db_row: Vec<(String, DbValue)> = row.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
@@ -32,8 +30,7 @@ impl InsertQuery {
         self
     }
 
-    /// Appends multiple rows at once. Equivalent to calling [`insert`](Self::insert)
-    /// once per row.
+    /// Appends multiple rows to the query.
     pub fn bulk_insert<I, R, K, V>(mut self, rows: I) -> Self
     where I: IntoIterator<Item = R>, R: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<DbValue> {
         for row in rows {
@@ -44,7 +41,7 @@ impl InsertQuery {
     }
 }
 
-/// Executes a prepared insert statement and returns the number of rows affected.
+/// Compiled, ready-to-execute INSERT query.
 #[async_trait]
 pub trait PreparedInsertQuery: Send + Sync {
     async fn execute(&self) -> DbResult<u64>;
