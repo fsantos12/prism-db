@@ -68,7 +68,7 @@ impl DbExecutor for MySqlDriver {
 
 #[async_trait]
 impl DbDriver for MySqlDriver {
-    async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
+    async fn begin_transaction(&self) -> DbResult<Arc<dyn DbTransaction>> {
         if let MySqlExecutor::Pool(pool) = &self.executor {
             let tx = pool.begin().await.map_err(DbError::driver)?;
             let mysql_tx = MySqlTransaction::new(tx);

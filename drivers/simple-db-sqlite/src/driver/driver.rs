@@ -69,7 +69,7 @@ impl DbExecutor for SqliteDriver {
 
 #[async_trait]
 impl DbDriver for SqliteDriver {
-    async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
+    async fn begin_transaction(&self) -> DbResult<Arc<dyn DbTransaction>> {
         if let SqliteExecutor::Pool(pool) = &self.executor {
             let tx = pool.begin().await.map_err(DbError::driver)?;
             let sqlite_tx = SqliteTransaction::new(tx);

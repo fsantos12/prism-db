@@ -68,7 +68,7 @@ impl DbExecutor for PostgresDriver {
 
 #[async_trait]
 impl DbDriver for PostgresDriver {
-    async fn begin(&self) -> DbResult<Arc<dyn DbTransaction>> {
+    async fn begin_transaction(&self) -> DbResult<Arc<dyn DbTransaction>> {
         if let PostgresExecutor::Pool(pool) = &self.executor {
             let tx = pool.begin().await.map_err(DbError::driver)?;
             let pg_tx = PostgresTransaction::new(tx);

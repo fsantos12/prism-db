@@ -64,7 +64,7 @@ where
 impl DbTransactionExt for Arc<dyn DbDriver> {
     async fn transaction<F, Fut, T>(&self, f: F) -> DbResult<T>
     where F: FnOnce(Arc<dyn DbTransaction>) -> Fut + Send, Fut: Future<Output = DbResult<T>> + Send, T: Send, {
-        let tx = self.begin().await?;
+        let tx = self.begin_transaction().await?;
         let result = f(tx.clone()).await;
         match result {
             Ok(value) => {
