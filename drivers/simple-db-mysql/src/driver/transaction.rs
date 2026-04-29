@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use simple_db_core::{driver::{executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
+use simple_db_core::{driver::{executor::DbExecutor, transaction::{close_transaction, DbTransaction}}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::DbResult};
 use sqlx::{MySql, Transaction};
 use tokio::sync::Mutex;
 
@@ -42,13 +42,7 @@ impl DbExecutor for MySqlTransaction {
 impl DbTransaction for MySqlTransaction {
     async fn commit(&self) -> DbResult<()> {
         if let MySqlExecutor::Transaction(inner) = &self.executor {
-            let mut guard = inner.lock().await;
-            if let Some(tx) = guard.take() { // Extrai a transação, deixando None
-                tx.commit().await.map_err(DbError::driver)?;
-                Ok(())
-            } else {
-                Err(DbError::Internal("Transaction already closed".into()))
-            }
+            close_transaction(inner, "Transaction already closed", |tx: Transaction<'static, MySql>| async move { tx.commit().await }).await
         } else {
             unreachable!("MySqlTransaction must always hold a Transaction variant")
         }
@@ -56,13 +50,7 @@ impl DbTransaction for MySqlTransaction {
 
     async fn rollback(&self) -> DbResult<()> {
         if let MySqlExecutor::Transaction(inner) = &self.executor {
-            let mut guard = inner.lock().await;
-            if let Some(tx) = guard.take() {
-                tx.rollback().await.map_err(DbError::driver)?;
-                Ok(())
-            } else {
-                Err(DbError::Internal("Transaction already closed".into()))
-            }
+            close_transaction(inner, "Transaction already closed", |tx: Transaction<'static, MySql>| async move { tx.rollback().await }).await
         } else {
             unreachable!()
         }
