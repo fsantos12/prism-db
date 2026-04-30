@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use futures::lock::Mutex;
 use sqlx::{MySql, MySqlPool, Transaction, mysql::{MySqlArguments, MySqlQueryResult}, query::Query};
 
 /// Execution context that abstracts over pool and transaction.

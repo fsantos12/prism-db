@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use futures::lock::Mutex;
 use sqlx::{Sqlite, SqlitePool, Transaction, sqlite::{SqliteArguments, SqliteQueryResult}, query::Query};
 
 /// Execution context that abstracts over pool and transaction.

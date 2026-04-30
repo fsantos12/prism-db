@@ -2,7 +2,7 @@ use std::sync::Arc;
 use core::future::Future;
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
+use futures::lock::Mutex;
 
 use crate::{driver::{driver::DbDriver, executor::DbExecutor}, types::{DbError, DbResult}};
 

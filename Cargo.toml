@@ -8,23 +8,24 @@ members = [
     "drivers/simple-db-postgres",
     "drivers/simple-db-sqlite",
     "simple-db",
-    "tests/simple-db-test",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+authors = ["Filipe Santos <filipesantos__12@hotmail.com>"]
+repository = "https://github.com/fsantos12/simple-db"
 
 [workspace.dependencies]
 # --- Internal ---
-simple-db          = { path = "simple-db" }
-simple-db-core     = { path = "simple-db-core"}
-simple-db-orm      = { path = "simple-db-orm"}
-simple-db-macros   = { path = "simple-db-macros"}
-simple-db-mysql    = { path = "drivers/simple-db-mysql"}
-simple-db-postgres = { path = "drivers/simple-db-postgres"}
-simple-db-sqlite   = { path = "drivers/simple-db-sqlite"}
+simple-db          = { path = "simple-db", version = "0.1.0" }
+simple-db-core     = { path = "simple-db-core", version = "0.1.0" }
+simple-db-orm      = { path = "simple-db-orm", version = "0.1.0" }
+simple-db-macros   = { path = "simple-db-macros", version = "0.1.0" }
+simple-db-mysql    = { path = "drivers/simple-db-mysql", version = "0.1.0" }
+simple-db-postgres = { path = "drivers/simple-db-postgres", version = "0.1.0" }
+simple-db-sqlite   = { path = "drivers/simple-db-sqlite", version = "0.1.0" }
 
 # --- Serialization & Formats ---
 serde      = { version = "1.0", features = ["derive"] }
@@ -42,9 +43,8 @@ smallvec = "1.11"
 smol_str = "0.3"
 
 # --- SQL ---
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "chrono", "uuid", "macros"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["chrono", "rust_decimal", "uuid", "json", "macros"] }
 
 # --- Async & Runtime ---
-tokio       = { version = "1.52.1", features = ["full"] }
 async-trait = "0.1"
 futures     = "0.3"

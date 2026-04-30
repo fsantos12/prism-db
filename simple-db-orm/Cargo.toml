@@ -6,7 +6,8 @@ license.workspace = true
 
 [dependencies]
 # --- Internal ---
-simple-db-core = { workspace = true }
+simple-db-core   = { workspace = true }
+simple-db-macros = { workspace = true }
 
 # --- Async & Runtime ---
 async-trait = { workspace = true }
