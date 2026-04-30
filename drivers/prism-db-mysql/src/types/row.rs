@@ -1,7 +1,7 @@
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+﻿use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use rust_decimal::Decimal;
 use serde_json::Value as JsonValue;
-use simple_db_core::types::{DbRow, DbValue};
+use prism_db_core::types::{DbRow, DbValue};
 use sqlx::{mysql::MySqlRow, Column, Row, TypeInfo, ValueRef};
 
 pub(crate) struct MySqlDbRow {

@@ -1,4 +1,4 @@
-use simple_db_core::query::GroupDefinition;
+﻿use prism_db_core::query::GroupDefinition;
 
 /// Compiles a [`GroupDefinition`] into a PostgreSQL `GROUP BY` clause fragment (without the keyword).
 ///
@@ -14,7 +14,7 @@ pub(crate) fn compile_groups(groups: &GroupDefinition) -> String {
 
 #[cfg(test)]
 mod tests {
-    use simple_db_core::query::GroupBuilder;
+    use prism_db_core::query::GroupBuilder;
     use super::*;
 
     fn build(f: impl FnOnce(GroupBuilder) -> GroupBuilder) -> String {

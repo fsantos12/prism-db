@@ -1,11 +1,11 @@
-//! Procedural macros for the simple-db ORM.
+﻿//! Procedural macros for the prism-db ORM.
 //!
 //! Provides `#[derive(DbEntity)]` for automatic `DbEntityTrait` implementation.
 //!
 //! # Example
 //!
 //! ```ignore
-//! use simple_db_macros::DbEntity;
+//! use prism_db_macros::DbEntity;
 //!
 //! #[derive(DbEntity, Clone)]
 //! #[db(table = "users")]

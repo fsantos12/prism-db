@@ -1,7 +1,7 @@
-use std::sync::Arc;
+﻿use std::sync::Arc;
 
 use async_trait::async_trait;
-use simple_db_core::{driver::{driver::DbDriver, executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
+use prism_db_core::{driver::{driver::DbDriver, executor::DbExecutor, transaction::DbTransaction}, query::{FindQuery, InsertQuery, PreparedDeleteQuery, PreparedFindQuery, PreparedInsertQuery, PreparedUpdateQuery, UpdateQuery}, types::{DbError, DbResult}};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 use crate::{PostgresTransaction, driver::executor::PostgresExecutor, queries::{find::PostgresPreparedFindQuery, insert::PostgresPreparedInsertQuery, update::PostgresPreparedUpdateQuery}};
@@ -37,7 +37,7 @@ impl PostgresDriver {
     /// Executes raw SQL for DDL or administration.
     ///
     /// # Warning
-    /// Bypasses parameter binding—use query builders for safe parameterized queries.
+    /// Bypasses parameter bindingâ€”use query builders for safe parameterized queries.
     pub async fn execute_raw(&self, sql: &str) -> DbResult<()> {
         let query = sqlx::query(sql);
         self.executor.execute(query)
@@ -61,7 +61,7 @@ impl DbExecutor for PostgresDriver {
         Ok(Box::new(PostgresPreparedUpdateQuery::new(&self.executor, query)))
     }
 
-    fn prepare_delete(&self, query: simple_db_core::query::DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
+    fn prepare_delete(&self, query: prism_db_core::query::DeleteQuery) -> DbResult<Box<dyn PreparedDeleteQuery + '_>> {
         Ok(Box::new(crate::queries::delete::PostgresPreparedDeleteQuery::new(&self.executor, query)))
     }
 }

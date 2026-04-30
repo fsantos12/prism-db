@@ -1,6 +1,6 @@
-//! # simple-db-mysql
+﻿//! # prism-db-mysql
 //!
-//! MySQL driver implementation for simple-db.
+//! MySQL driver implementation for prism-db.
 //!
 //! Provides:
 //! - `MySqlDriver` for connection pooling and query execution

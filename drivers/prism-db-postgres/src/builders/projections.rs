@@ -1,4 +1,4 @@
-use simple_db_core::query::{Projection, ProjectionDefinition};
+﻿use prism_db_core::query::{Projection, ProjectionDefinition};
 
 /// Compiles a [`ProjectionDefinition`] into a PostgreSQL `SELECT` column list.
 ///
@@ -28,7 +28,7 @@ fn compile_projection(projection: &Projection) -> String {
 
 #[cfg(test)]
 mod tests {
-    use simple_db_core::query::ProjectionBuilder;
+    use prism_db_core::query::ProjectionBuilder;
     use super::*;
 
     fn build(f: impl FnOnce(ProjectionBuilder) -> ProjectionBuilder) -> String {

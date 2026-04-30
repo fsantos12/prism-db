@@ -1,14 +1,14 @@
-//! # simple-db
+﻿//! # prism-db
 //!
 //! A comprehensive, modular ORM and query builder for Rust supporting multiple SQL backends.
 //!
 //! ## Architecture
 //!
-//! **simple-db** is designed as a **backend-agnostic** core that can support any database via pluggable drivers:
+//! **prism-db** is designed as a **backend-agnostic** core that can support any database via pluggable drivers:
 //!
-//! - **simple-db-core**: Database-independent abstractions (traits, builders, types)
-//! - **simple-db-orm**: Entity tracking, change detection, and persistence helpers
-//! - **simple-db-macros**: Procedural macros for automatic trait derivation
+//! - **prism-db-core**: Database-independent abstractions (traits, builders, types)
+//! - **prism-db-orm**: Entity tracking, change detection, and persistence helpers
+//! - **prism-db-macros**: Procedural macros for automatic trait derivation
 //! - **Drivers** (sqlite, postgres, mysql): Backend-specific implementations using sqlx
 //!
 //! ## Features
@@ -25,7 +25,7 @@
 //! ### 1. Define an Entity
 //!
 //! ```ignore
-//! use simple_db::{DbEntity, DeriveDbEntity};
+//! use prism_db::{DbEntity, DeriveDbEntity};
 //!
 //! #[derive(DeriveDbEntity, Clone)]
 //! #[db(table = "users")]
@@ -40,7 +40,7 @@
 //! ### 2. Connect to a Database
 //!
 //! ```ignore
-//! use simple_db::SqliteDriver;
+//! use prism_db::SqliteDriver;
 //!
 //! let driver = SqliteDriver::connect("sqlite::memory:").await?;
 //! ```
@@ -48,7 +48,7 @@
 //! ### 3. Query
 //!
 //! ```ignore
-//! use simple_db::query::{FindQuery, FilterBuilder};
+//! use prism_db::query::{FindQuery, FilterBuilder};
 //!
 //! let query = FindQuery::new("users")
 //!     .filter(FilterBuilder::new().eq("email", "alice@example.com").build());
@@ -71,7 +71,7 @@
 //! Enable in `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! simple-db = { version = "0.1", features = ["sqlite", "orm", "macros"] }
+//! prism-db = { version = "0.1", features = ["sqlite", "orm", "macros"] }
 //! ```
 //!
 //! - `sqlite`: SQLite driver
@@ -80,23 +80,23 @@
 //! - `orm`: Entity tracking and persistence
 //! - `macros`: Automatic trait derivation
 
-pub use simple_db_core::DbContext;
-pub use simple_db_core::driver;
-pub use simple_db_core::query;
-pub use simple_db_core::types;
-pub use simple_db_core::{filter, project, sort, group};
+pub use prism_db_core::DbContext;
+pub use prism_db_core::driver;
+pub use prism_db_core::query;
+pub use prism_db_core::types;
+pub use prism_db_core::{filter, project, sort, group};
 
 #[cfg(feature = "orm")]
-pub use simple_db_orm::{DbEntity, DbEntityTrait, TrackingState};
+pub use prism_db_orm::{DbEntity, DbEntityTrait, TrackingState};
 
 #[cfg(feature = "orm")]
-pub use simple_db_macros::DbEntity as DeriveDbEntity;
+pub use prism_db_macros::DbEntity as DeriveDbEntity;
 
 #[cfg(feature = "sqlite")]
-pub use simple_db_sqlite::{SqlitePool, SqlitePoolOptions, SqliteDriver, SqliteTransaction};
+pub use prism_db_sqlite::{SqlitePool, SqlitePoolOptions, SqliteDriver, SqliteTransaction};
 
 #[cfg(feature = "postgres")]
-pub use simple_db_postgres::{PgPool, PgPoolOptions, PostgresDriver, PostgresTransaction};
+pub use prism_db_postgres::{PgPool, PgPoolOptions, PostgresDriver, PostgresTransaction};
 
 #[cfg(feature = "mysql")]
-pub use simple_db_mysql::{MySqlPool, MySqlPoolOptions, MySqlDriver, MySqlTransaction};
+pub use prism_db_mysql::{MySqlPool, MySqlPoolOptions, MySqlDriver, MySqlTransaction};

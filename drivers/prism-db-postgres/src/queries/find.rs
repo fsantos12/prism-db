@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
+﻿use async_trait::async_trait;
+use prism_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
 use crate::{builders::{filters::compile_filters, groups::compile_groups, projections::compile_projections, sorts::compile_sorts}, driver::executor::PostgresExecutor, queries::binders::bind_values, types::cursor::PostgresDbCursor};
 
 pub(crate) struct PostgresPreparedFindQuery<'a> {

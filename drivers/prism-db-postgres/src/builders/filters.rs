@@ -1,4 +1,4 @@
-use simple_db_core::{query::{Filter, FilterDefinition}, types::DbValue};
+﻿use prism_db_core::{query::{Filter, FilterDefinition}, types::DbValue};
 
 /// Compiles a [`FilterDefinition`] into a PostgreSQL `WHERE` clause fragment and bound values.
 ///
@@ -102,7 +102,7 @@ fn compile_filter(filter: &Filter, counter: &mut usize) -> (String, Vec<DbValue>
 
 #[cfg(test)]
 mod tests {
-    use simple_db_core::query::FilterBuilder;
+    use prism_db_core::query::FilterBuilder;
     use super::*;
 
     fn build(f: impl FnOnce(FilterBuilder) -> FilterBuilder) -> (String, Vec<DbValue>) {

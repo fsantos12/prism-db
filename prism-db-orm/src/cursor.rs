@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::types::{DbCursor, DbResult};
+﻿use async_trait::async_trait;
+use prism_db_core::types::{DbCursor, DbResult};
 
 use crate::entity::DbEntityTrait;
 

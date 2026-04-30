@@ -1,6 +1,6 @@
-//! # simple-db-core
+﻿//! # prism-db-core
 //!
-//! Core query builder, type system, and driver abstractions for simple-db.
+//! Core query builder, type system, and driver abstractions for prism-db.
 //!
 //! This crate provides:
 //! - A backend-agnostic query builder API (`FindQuery`, `InsertQuery`, `UpdateQuery`, `DeleteQuery`)

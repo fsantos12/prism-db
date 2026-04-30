@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
+﻿use async_trait::async_trait;
+use prism_db_core::{query::{FindQuery, PreparedFindQuery}, types::{DbCursor, DbError, DbResult, DbValue}};
 use crate::{builders::{filters::compile_filters, groups::compile_groups, projections::compile_projections, sorts::compile_sorts}, driver::executor::MySqlExecutor, queries::binders::bind_values, types::cursor::MySqlDbCursor};
 
 pub(crate) struct MySqlPreparedFindQuery<'a> {

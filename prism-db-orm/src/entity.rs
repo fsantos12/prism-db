@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::{driver::executor::DbExecutor, query::{DeleteQuery, FilterDefinition, InsertQuery, UpdateQuery}, types::{DbResult, DbRow, DbValue}};
+﻿use async_trait::async_trait;
+use prism_db_core::{driver::executor::DbExecutor, query::{DeleteQuery, FilterDefinition, InsertQuery, UpdateQuery}, types::{DbResult, DbRow, DbValue}};
 
 /// Core ORM trait for mapping between Rust types and database rows.
 ///
@@ -30,7 +30,7 @@ pub trait DbEntityTrait: Clone {
     ///
     /// Overridable for complex primary key scenarios.
     fn primary_key_filter(&self) -> FilterDefinition {
-        use simple_db_core::query::FilterBuilder;
+        use prism_db_core::query::FilterBuilder;
         let pk = self.primary_key();
         pk.into_iter()
             .fold(FilterBuilder::new(), |builder, (key, val)| builder.eq(key, val))
@@ -79,7 +79,7 @@ impl<T> TrackingState<T> {
 
 /// Entity wrapper with automatic change tracking and persistence.
 ///
-/// Tracks state transitions (new → saved → tracked or deleted) and provides
+/// Tracks state transitions (new â†’ saved â†’ tracked or deleted) and provides
 /// automatic INSERT/UPDATE/DELETE generation based on changes.
 ///
 /// # Example

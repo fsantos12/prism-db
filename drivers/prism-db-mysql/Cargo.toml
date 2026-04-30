@@ -1,5 +1,5 @@
-[package]
-name = "simple-db-mysql"
+﻿[package]
+name = "prism-db-mysql"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ runtime-async-std-native-tls = ["sqlx/runtime-async-std-native-tls"]
 
 [dependencies]
 # --- Internal ---
-simple-db-core = { workspace = true }
+prism-db-core = { workspace = true }
 
 # --- Types & Utils ---
 chrono       = { workspace = true }

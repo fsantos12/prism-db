@@ -1,5 +1,5 @@
-[package]
-name = "simple-db-macros"
+﻿[package]
+name = "prism-db-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

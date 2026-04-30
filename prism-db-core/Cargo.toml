@@ -1,5 +1,5 @@
-[package]
-name = "simple-db-core"
+﻿[package]
+name = "prism-db-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

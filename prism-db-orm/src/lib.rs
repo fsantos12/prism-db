@@ -1,6 +1,6 @@
-//! # simple-db-orm
+﻿//! # prism-db-orm
 //!
-//! ORM (Object-Relational Mapping) layer for simple-db.
+//! ORM (Object-Relational Mapping) layer for prism-db.
 //!
 //! Provides:
 //! - `DbEntity<T>` wrapper for tracking entity state (untracked, tracked, detached)
@@ -47,4 +47,4 @@ mod cursor;
 pub use entity::{DbEntityTrait, DbEntity, TrackingState};
 pub use cursor::DbCursorEntityExt;
 
-pub use simple_db_macros::*;
+pub use prism_db_macros::*;

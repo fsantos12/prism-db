@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::{query::{DeleteQuery, PreparedDeleteQuery}, types::{DbError, DbResult, DbValue}};
+﻿use async_trait::async_trait;
+use prism_db_core::{query::{DeleteQuery, PreparedDeleteQuery}, types::{DbError, DbResult, DbValue}};
 use crate::{builders::filters::compile_filters, driver::executor::PostgresExecutor, queries::binders::bind_values};
 
 pub(crate) struct PostgresPreparedDeleteQuery<'a> {

@@ -1,7 +1,7 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+﻿use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use rust_decimal::Decimal;
 use serde_json::Value as JsonValue;
-use simple_db_core::types::{DbRow, DbValue};
+use prism_db_core::types::{DbRow, DbValue};
 use sqlx::{postgres::PgRow, Column, Row, TypeInfo, ValueRef};
 use uuid::Uuid;
 

@@ -1,13 +1,13 @@
-[package]
-name = "simple-db-orm"
+﻿[package]
+name = "prism-db-orm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 # --- Internal ---
-simple-db-core   = { workspace = true }
-simple-db-macros = { workspace = true }
+prism-db-core   = { workspace = true }
+prism-db-macros = { workspace = true }
 
 # --- Async & Runtime ---
 async-trait = { workspace = true }

@@ -1,6 +1,6 @@
-//! # simple-db-postgres
+﻿//! # prism-db-postgres
 //!
-//! PostgreSQL driver implementation for simple-db.
+//! PostgreSQL driver implementation for prism-db.
 //!
 //! Provides:
 //! - `PostgresDriver` for connection pooling and query execution

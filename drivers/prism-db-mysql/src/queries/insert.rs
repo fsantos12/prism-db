@@ -1,5 +1,5 @@
-use async_trait::async_trait;
-use simple_db_core::{query::{InsertQuery, PreparedInsertQuery}, types::{DbError, DbResult, DbValue}};
+﻿use async_trait::async_trait;
+use prism_db_core::{query::{InsertQuery, PreparedInsertQuery}, types::{DbError, DbResult, DbValue}};
 use crate::{driver::executor::MySqlExecutor, queries::binders::bind_values};
 
 pub(crate) struct MySqlPreparedInsertQuery<'a> {

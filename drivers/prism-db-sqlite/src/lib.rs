@@ -1,6 +1,6 @@
-//! # simple-db-sqlite
+﻿//! # prism-db-sqlite
 //!
-//! SQLite driver implementation for simple-db.
+//! SQLite driver implementation for prism-db.
 //!
 //! Provides:
 //! - `SqliteDriver` for connection pooling and query execution

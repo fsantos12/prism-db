@@ -1,5 +1,5 @@
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use simple_db_core::types::{DbRow, DbValue};
+﻿use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use prism_db_core::types::{DbRow, DbValue};
 use sqlx::{sqlite::SqliteRow, Column, Row, TypeInfo, ValueRef};
 
 pub(crate) struct SqliteDbRow {

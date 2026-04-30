@@ -1,4 +1,4 @@
-use simple_db_core::query::{Sort, SortDefinition};
+﻿use prism_db_core::query::{Sort, SortDefinition};
 
 /// Compiles a [`SortDefinition`] into a PostgreSQL `ORDER BY` clause fragment (without the keyword).
 ///
@@ -27,7 +27,7 @@ fn compile_sort(sort: &Sort) -> String {
 
 #[cfg(test)]
 mod tests {
-    use simple_db_core::query::SortBuilder;
+    use prism_db_core::query::SortBuilder;
     use super::*;
 
     fn build(f: impl FnOnce(SortBuilder) -> SortBuilder) -> String {

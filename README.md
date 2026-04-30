@@ -1,8 +1,8 @@
-# Simple-DB
+﻿# Prism-DB
 
 **A modular, extensible database abstraction framework for Rust supporting SQL, NoSQL, and beyond.**
 
-Simple-DB is a **backend-agnostic database layer** designed to unify access across heterogeneous data stores—SQL databases (PostgreSQL, MySQL, SQLite), NoSQL systems (MongoDB, DynamoDB), in-memory caches (Redis, Memcached), and custom backends. It provides a pluggable driver architecture, type-safe abstractions, and common patterns (change tracking, transactions, entity mapping) that work identically regardless of the underlying store. Write once, run anywhere.
+Prism-DB is a **backend-agnostic database layer** designed to unify access across heterogeneous data storesâ€”SQL databases (PostgreSQL, MySQL, SQLite), NoSQL systems (MongoDB, DynamoDB), in-memory caches (Redis, Memcached), and custom backends. It provides a pluggable driver architecture, type-safe abstractions, and common patterns (change tracking, transactions, entity mapping) that work identically regardless of the underlying store. Write once, run anywhere.
 
 ---
 
@@ -11,12 +11,12 @@ Simple-DB is a **backend-agnostic database layer** designed to unify access acro
 - **Backend-Agnostic API**: Write database code once; run against SQL, NoSQL, in-memory, or custom stores
 - **Pluggable Drivers**: Drop-in driver system for PostgreSQL, MySQL, SQLite, MongoDB, Redis, DynamoDB, and beyond
 - **Unified Query Interface**: `FindQuery`, `InsertQuery`, `UpdateQuery`, `DeleteQuery` work across backends (with backend-specific optimizations)
-- **Change Tracking**: Automatic INSERT/UPDATE/DELETE detection via `DbEntity<T>` state machines—works for any datastore
-- **Async/Await**: Full async support built on `tokio`—ideal for high-concurrency workloads
+- **Change Tracking**: Automatic INSERT/UPDATE/DELETE detection via `DbEntity<T>` state machinesâ€”works for any datastore
+- **Async/Await**: Full async support built on `tokio`â€”ideal for high-concurrency workloads
 - **Transaction Support**: ACID-like semantics where supported, graceful degradation for eventual-consistency stores
 - **Type-Safe Values**: `DbValue` tagged-pointer system ensures type safety at zero runtime cost
 - **Connection Pooling**: Integrated pooling and resource management for pooled backends
-- **Modular Architecture**: Clean separation—swap drivers without touching application code
+- **Modular Architecture**: Clean separationâ€”swap drivers without touching application code
 
 ---
 
@@ -41,59 +41,59 @@ Simple-DB is a **backend-agnostic database layer** designed to unify access acro
 
 ## Architecture Overview
 
-Simple-DB follows a **layered, plugin-based architecture** designed to support any backend data store:
+Prism-DB follows a **layered, plugin-based architecture** designed to support any backend data store:
 
 ```
-┌─────────────────────────────────────────────┐
-│           Application Layer                  │
-│      (Your Entity Types & Queries)           │
-│       (Database-agnostic code)               │
-└────────────────┬────────────────────────────┘
-                 │
-┌────────────────▼────────────────────────────┐
-│        simple-db (Public Facade)             │
-│      Re-exports core, orm, and macros        │
-└────────────────┬────────────────────────────┘
-                 │
-    ┌────────────┼────────────┐
-    │            │            │
-┌───▼──┐    ┌────▼───┐   ┌───▼────┐
-│Core  │    │  ORM   │   │ Macros │
-│      │    │        │   │        │
-│- Traits   │- Entity │   │- Derive│
-│- Builders │- Cursor │   │- Attrs │
-│- Types    │- Change │   │        │
-└───┬──┘    │ Tracking│   └────────┘
-    │       └────┬───┘
-    └───────────┬───────────────────┐
-                │                   │
-        ┌───────▼────────┐  ┌──────▼──────┐
-        │  Driver Traits │  │  Transaction│
-        │                │  │   Helpers   │
-        │- DbDriver      │  │             │
-        │- DbExecutor    │  │- begin()    │
-        │- DbTransaction │  │- commit()   │
-        └────────┬───────┘  │- rollback() │
-                 │          └─────────────┘
-    ┌────────────┼────────────────────┐
-    │            │                    │
-    ▼            ▼                    ▼
- ┌──────────┐ ┌─────────────┐ ┌────────────┐
- │ SQL      │ │ NoSQL       │ │ Cache &    │
- │ Drivers  │ │ Drivers     │ │ Message Q  │
- │          │ │             │ │            │
- │- Postgres│ │- MongoDB    │ │- Redis     │
- │- MySQL   │ │- DynamoDB   │ │- Memcached │
- │- SQLite  │ │- Cassandra  │ │- RabbitMQ  │
- └──────────┘ └─────────────┘ └────────────┘
-    │            │                    │
-    └────────────┼────────────────────┘
-                 │
-    ┌────────────▼──────────────────┐
-    │   Heterogeneous Backends      │
-    │ (Any database, cache, or      │
-    │  messaging system)            │
-    └───────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚           Application Layer                  â”‚
+â”‚      (Your Entity Types & Queries)           â”‚
+â”‚       (Database-agnostic code)               â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                 â”‚
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚        Prism-DB (Public Facade)             â”‚
+â”‚      Re-exports core, orm, and macros        â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                 â”‚
+    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+    â”‚            â”‚            â”‚
+â”Œâ”€â”€â”€â–¼â”€â”€â”    â”Œâ”€â”€â”€â”€â–¼â”€â”€â”€â”   â”Œâ”€â”€â”€â–¼â”€â”€â”€â”€â”
+â”‚Core  â”‚    â”‚  ORM   â”‚   â”‚ Macros â”‚
+â”‚      â”‚    â”‚        â”‚   â”‚        â”‚
+â”‚- Traits   â”‚- Entity â”‚   â”‚- Deriveâ”‚
+â”‚- Builders â”‚- Cursor â”‚   â”‚- Attrs â”‚
+â”‚- Types    â”‚- Change â”‚   â”‚        â”‚
+â””â”€â”€â”€â”¬â”€â”€â”˜    â”‚ Trackingâ”‚   â””â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+    â”‚       â””â”€â”€â”€â”€â”¬â”€â”€â”€â”˜
+    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                â”‚                   â”‚
+        â”Œâ”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”
+        â”‚  Driver Traits â”‚  â”‚  Transactionâ”‚
+        â”‚                â”‚  â”‚   Helpers   â”‚
+        â”‚- DbDriver      â”‚  â”‚             â”‚
+        â”‚- DbExecutor    â”‚  â”‚- begin()    â”‚
+        â”‚- DbTransaction â”‚  â”‚- commit()   â”‚
+        â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜  â”‚- rollback() â”‚
+                 â”‚          â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+    â”‚            â”‚                    â”‚
+    â–¼            â–¼                    â–¼
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚ SQL      â”‚ â”‚ NoSQL       â”‚ â”‚ Cache &    â”‚
+ â”‚ Drivers  â”‚ â”‚ Drivers     â”‚ â”‚ Message Q  â”‚
+ â”‚          â”‚ â”‚             â”‚ â”‚            â”‚
+ â”‚- Postgresâ”‚ â”‚- MongoDB    â”‚ â”‚- Redis     â”‚
+ â”‚- MySQL   â”‚ â”‚- DynamoDB   â”‚ â”‚- Memcached â”‚
+ â”‚- SQLite  â”‚ â”‚- Cassandra  â”‚ â”‚- RabbitMQ  â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+    â”‚            â”‚                    â”‚
+    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                 â”‚
+    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+    â”‚   Heterogeneous Backends      â”‚
+    â”‚ (Any database, cache, or      â”‚
+    â”‚  messaging system)            â”‚
+    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 **Design Principles:**
@@ -101,7 +101,7 @@ Simple-DB follows a **layered, plugin-based architecture** designed to support a
 - **Backend Agnostic**: Query builders and types don't depend on specific database implementations.
 - **Trait-Based Driver Model**: `DbDriver`, `DbExecutor`, and `DbTransaction` define a pluggable interface that any backend can implement.
 - **Unified API**: Identical usage patterns across SQL, NoSQL, in-memory, and custom stores.
-- **Modular Crates**: Each crate has a single responsibility—easy to understand, test, and extend.
+- **Modular Crates**: Each crate has a single responsibilityâ€”easy to understand, test, and extend.
 - **Zero-Cost Abstractions**: Leverages Rust's type system to eliminate runtime overhead.
 
 **Supported Backend Categories:**
@@ -124,8 +124,8 @@ Ensure you have Rust 1.70+ installed. If not, visit [rustup.rs](https://rustup.r
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/simple-db.git
-cd simple-db
+git clone https://github.com/your-org/Prism-DB.git
+cd Prism-DB
 ```
 
 ### 3. Set Up a Test Database (Optional)
@@ -158,14 +158,14 @@ cargo test --test sqlite_integration -- --nocapture
 
 ```toml
 [dependencies]
-simple-db = "0.1"
+Prism-DB = "0.1"
 
 # Choose your driver(s)
-simple-db-postgres = "0.1"   # for SQL: PostgreSQL
-simple-db-mysql = "0.1"      # for SQL: MySQL
-simple-db-sqlite = "0.1"     # for SQL: SQLite
-# simple-db-redis = "0.1"    # (coming soon) for cache
-# simple-db-mongodb = "0.1"  # (coming soon) for NoSQL
+Prism-DB-postgres = "0.1"   # for SQL: PostgreSQL
+Prism-DB-mysql = "0.1"      # for SQL: MySQL
+Prism-DB-sqlite = "0.1"     # for SQL: SQLite
+# Prism-DB-redis = "0.1"    # (coming soon) for cache
+# Prism-DB-mongodb = "0.1"  # (coming soon) for NoSQL
 
 tokio = { version = "1.0", features = ["full"] }
 ```
@@ -243,9 +243,9 @@ All examples below show SQL patterns, but the same API works for NoSQL, Redis, a
 ### Basic Query: Find All Users
 
 ```rust
-use simple_db_postgres::PostgresDriver;
-use simple_db_core::query::FindQuery;
-use simple_db_core::types::DbResult;
+use prism_db_postgres::PostgresDriver;
+use prism_db_core::query::FindQuery;
+use prism_db_core::types::DbResult;
 
 #[tokio::main]
 async fn main() -> DbResult<()> {
@@ -271,7 +271,7 @@ async fn main() -> DbResult<()> {
 To use **MongoDB** instead, simply swap the driver:
 
 ```rust
-// use simple_db_mongodb::MongoDbDriver;  // (when available)
+// use prism_db_mongodb::MongoDbDriver;  // (when available)
 // let driver = MongoDbDriver::connect("mongodb://localhost/mydb").await?;
 ```
 
@@ -280,8 +280,8 @@ The query and result-handling code remains **identical**.
 ### Insert Rows
 
 ```rust
-use simple_db_core::query::InsertQuery;
-use simple_db_core::types::DbValue;
+use prism_db_core::query::InsertQuery;
+use prism_db_core::types::DbValue;
 
 let query = InsertQuery::new("users")
     .insert("id", DbValue::from(1i64))
@@ -296,8 +296,8 @@ driver.prepare_insert(query)?
 ### Filtered Find (With Filters)
 
 ```rust
-use simple_db_core::query::FindQuery;
-use simple_db_core::filter;
+use prism_db_core::query::FindQuery;
+use prism_db_core::filter;
 
 let query = FindQuery::new("users")
     .filter(filter!()
@@ -315,7 +315,7 @@ let cursor = driver.prepare_find(query)?
 ### Transaction Example
 
 ```rust
-use simple_db_core::driver::transaction::DbTransactionExt;
+use prism_db_core::driver::transaction::DbTransactionExt;
 use std::sync::Arc;
 
 let result = driver.transaction(|tx| async move {
@@ -332,7 +332,7 @@ assert_eq!(result, 42);
 ### Using Entities with Change Tracking
 
 ```rust
-use simple_db_orm::DbEntity;
+use prism_db_orm::DbEntity;
 
 // Create a new, untracked entity
 let mut user = DbEntity::new(User { id: 1, name: "Bob".to_string() });
@@ -349,9 +349,9 @@ driver.persist(&user).await?;
 To add support for a new backend (e.g., DuckDB, Firestore, DynamoDB), implement the `DbDriver` trait:
 
 ```rust
-use simple_db_core::driver::driver::DbDriver;
-use simple_db_core::driver::executor::DbExecutor;
-use simple_db_core::types::DbResult;
+use prism_db_core::driver::driver::DbDriver;
+use prism_db_core::driver::executor::DbExecutor;
+use prism_db_core::types::DbResult;
 use async_trait::async_trait;
 
 pub struct MyCustomDriver {
@@ -433,8 +433,8 @@ We welcome contributions! Please follow these guidelines:
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/your-fork/simple-db.git
-cd simple-db
+git clone https://github.com/your-fork/Prism-DB.git
+cd Prism-DB
 ```
 
 ### 2. Create a Feature Branch
@@ -509,18 +509,18 @@ git push origin feat/my-feature
 
 ## License
 
-This project is licensed under the **MIT License**—see [LICENSE](./LICENSE) for details.
+This project is licensed under the **MIT License**â€”see [LICENSE](./LICENSE) for details.
 
 ---
 
 ## Support
 
 - **Documentation**: Check the [docs](./docs/) directory for detailed guides.
-- **Issues**: Report bugs or feature requests on [GitHub Issues](https://github.com/your-org/simple-db/issues).
-- **Discussions**: Join our community on [GitHub Discussions](https://github.com/your-org/simple-db/discussions).
+- **Issues**: Report bugs or feature requests on [GitHub Issues](https://github.com/your-org/Prism-DB/issues).
+- **Discussions**: Join our community on [GitHub Discussions](https://github.com/your-org/Prism-DB/discussions).
 
 ---
 
 ## Acknowledgments
 
-Built with ❤️ using [Rust](https://www.rust-lang.org)
+Built with â¤ï¸ using [Rust](https://www.rust-lang.org)

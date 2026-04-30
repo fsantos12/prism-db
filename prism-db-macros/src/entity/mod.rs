@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+﻿use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Ident, LitStr, Type};
 
@@ -89,7 +89,7 @@ fn generate_impl(struct_ident: &Ident, table: &str, fields: &[Field]) -> TokenSt
         let ident = &f.ident;
         let col_name = &f.column_name;
         quote! {
-            (#col_name, ::simple_db_core::types::DbValue::from(self.#ident.clone()))
+            (#col_name, ::prism_db_core::types::DbValue::from(self.#ident.clone()))
         }
     });
 
@@ -97,7 +97,7 @@ fn generate_impl(struct_ident: &Ident, table: &str, fields: &[Field]) -> TokenSt
         let ident = &f.ident;
         let col_name = &f.column_name;
         quote! {
-            (#col_name, ::simple_db_core::types::DbValue::from(self.#ident.clone()))
+            (#col_name, ::prism_db_core::types::DbValue::from(self.#ident.clone()))
         }
     });
 
@@ -121,24 +121,24 @@ fn generate_impl(struct_ident: &Ident, table: &str, fields: &[Field]) -> TokenSt
 
     quote! {
         #[::async_trait::async_trait]
-        impl ::simple_db_orm::DbEntityTrait for #struct_ident {
+        impl ::prism_db_orm::DbEntityTrait for #struct_ident {
             fn table_name() -> &'static str {
                 #table
             }
 
-            fn primary_key(&self) -> ::std::vec::Vec<(&'static str, ::simple_db_core::types::DbValue)> {
+            fn primary_key(&self) -> ::std::vec::Vec<(&'static str, ::prism_db_core::types::DbValue)> {
                 ::std::vec![
                     #(#pks),*
                 ]
             }
 
-            fn to_db(&self) -> ::std::vec::Vec<(&'static str, ::simple_db_core::types::DbValue)> {
+            fn to_db(&self) -> ::std::vec::Vec<(&'static str, ::prism_db_core::types::DbValue)> {
                 ::std::vec![
                     #(#to_db_fields),*
                 ]
             }
 
-            fn from_db(row: &dyn ::simple_db_core::types::DbRow) -> Self {
+            fn from_db(row: &dyn ::prism_db_core::types::DbRow) -> Self {
                 Self {
                     #(#from_db_fields),*
                 }
