@@ -1,6 +1,6 @@
 # Prism-DB
 
-Prism-DB is a modular database toolkit for Rust, built around a clean query-builder layer, pluggable drivers, and a shared core API. It is designed to keep application code consistent across different backends while leaning on Rust's type system and SQLx for safe, predictable database access today.
+Prism-DB is a modular database toolkit for Rust, built around a clean query-builder layer, pluggable drivers, and a shared core API. It is designed to keep application code consistent across different backends while leaning on Rust's type system for safe, predictable database access.
 
 ## What lives where
 
