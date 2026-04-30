@@ -6,8 +6,7 @@ license.workspace = true
 
 [dependencies]
 # --- Internal ---
-prism-db-core   = { workspace = true }
-prism-db-macros = { workspace = true }
+prism-db-core = { workspace = true }
 
 # --- Async & Runtime ---
 async-trait = { workspace = true }

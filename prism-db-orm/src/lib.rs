@@ -46,5 +46,3 @@ mod cursor;
 
 pub use entity::{DbEntityTrait, DbEntity, TrackingState};
 pub use cursor::DbCursorEntityExt;
-
-pub use prism_db_macros::*;

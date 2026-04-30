@@ -590,6 +590,34 @@ impl<T: CustomDbValue + Clone> ToDbValue for T {
 }
 
 // ========================================
+// Numeric cast helpers
+// ========================================
+
+#[inline]
+fn as_any_int_i128(value: &DbValue) -> Option<i128> {
+    match value.r#type() {
+        TYPE_I8   => i8::from_exact(value).map(|v| v as i128),
+        TYPE_I16  => i16::from_exact(value).map(|v| v as i128),
+        TYPE_I32  => i32::from_exact(value).map(|v| v as i128),
+        TYPE_I64  => i64::from_exact(value).map(|v| v as i128),
+        TYPE_I128 => i128::from_exact(value),
+        _ => None,
+    }
+}
+
+#[inline]
+fn as_any_uint_u128(value: &DbValue) -> Option<u128> {
+    match value.r#type() {
+        TYPE_U8   => u8::from_exact(value).map(|v| v as u128),
+        TYPE_U16  => u16::from_exact(value).map(|v| v as u128),
+        TYPE_U32  => u32::from_exact(value).map(|v| v as u128),
+        TYPE_U64  => u64::from_exact(value).map(|v| v as u128),
+        TYPE_U128 => u128::from_exact(value),
+        _ => None,
+    }
+}
+
+// ========================================
 // Implementations of FromDbValue
 // ========================================
 impl FromDbValue for bool {
@@ -616,7 +644,10 @@ impl FromDbValue for i8 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_int_i128(value) { return i8::try_from(v).ok(); }
+        if let Some(v) = as_any_uint_u128(value) { return i8::try_from(v).ok(); }
+        None
     }
 }
 
@@ -630,7 +661,10 @@ impl FromDbValue for i16 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_int_i128(value) { return i16::try_from(v).ok(); }
+        if let Some(v) = as_any_uint_u128(value) { return i16::try_from(v).ok(); }
+        None
     }
 }
 
@@ -644,7 +678,10 @@ impl FromDbValue for i32 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_int_i128(value) { return i32::try_from(v).ok(); }
+        if let Some(v) = as_any_uint_u128(value) { return i32::try_from(v).ok(); }
+        None
     }
 }
 
@@ -664,7 +701,10 @@ impl FromDbValue for i64 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_int_i128(value) { return i64::try_from(v).ok(); }
+        if let Some(v) = as_any_uint_u128(value) { return i64::try_from(v).ok(); }
+        None
     }
 }
 
@@ -686,7 +726,10 @@ impl FromDbValue for i128 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_int_i128(value) { return Some(v); }
+        if let Some(v) = as_any_uint_u128(value) { return i128::try_from(v).ok(); }
+        None
     }
 }
 
@@ -700,7 +743,10 @@ impl FromDbValue for u8 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_uint_u128(value) { return u8::try_from(v).ok(); }
+        if let Some(v) = as_any_int_i128(value) { return u8::try_from(v).ok(); }
+        None
     }
 }
 
@@ -714,7 +760,10 @@ impl FromDbValue for u16 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_uint_u128(value) { return u16::try_from(v).ok(); }
+        if let Some(v) = as_any_int_i128(value) { return u16::try_from(v).ok(); }
+        None
     }
 }
 
@@ -728,7 +777,10 @@ impl FromDbValue for u32 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_uint_u128(value) { return u32::try_from(v).ok(); }
+        if let Some(v) = as_any_int_i128(value) { return u32::try_from(v).ok(); }
+        None
     }
 }
 
@@ -748,7 +800,10 @@ impl FromDbValue for u64 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_uint_u128(value) { return Some(v as u64); }
+        if let Some(v) = as_any_int_i128(value) { return u64::try_from(v).ok(); }
+        None
     }
 }
 
@@ -768,7 +823,10 @@ impl FromDbValue for u128 {
     }
 
     fn from_cast(value: &DbValue) -> Option<Self> {
-        Self::from_exact(value)
+        if Self::matches_type(value) { return Self::from_exact(value); }
+        if let Some(v) = as_any_uint_u128(value) { return Some(v); }
+        if let Some(v) = as_any_int_i128(value) { return u128::try_from(v).ok(); }
+        None
     }
 }
 

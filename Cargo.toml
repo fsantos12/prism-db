@@ -8,6 +8,10 @@ members = [
     "drivers/prism-db-postgres",
     "drivers/prism-db-sqlite",
     "prism-db",
+    "tests/prism-db-test",
+    "tests/prism-db-test-sqlite",
+    "tests/prism-db-test-postgres",
+    "tests/prism-db-test-mysql",
 ]
 
 [workspace.package]
@@ -26,6 +30,7 @@ prism-db-macros   = { path = "prism-db-macros", version = "0.1.0" }
 prism-db-mysql    = { path = "drivers/prism-db-mysql", version = "0.1.0" }
 prism-db-postgres = { path = "drivers/prism-db-postgres", version = "0.1.0" }
 prism-db-sqlite   = { path = "drivers/prism-db-sqlite", version = "0.1.0" }
+prism-db-test     = { path = "tests/prism-db-test", version = "0.1.0" }
 
 # --- Serialization & Formats ---
 serde      = { version = "1.0", features = ["derive"] }

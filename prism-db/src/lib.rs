@@ -87,10 +87,10 @@ pub use prism_db_core::types;
 pub use prism_db_core::{filter, project, sort, group};
 
 #[cfg(feature = "orm")]
-pub use prism_db_orm::{DbEntity, DbEntityTrait, TrackingState};
+pub use prism_db_orm::{DbEntity, DbEntityTrait, TrackingState, DbCursorEntityExt};
 
 #[cfg(feature = "orm")]
-pub use prism_db_macros::DbEntity as DeriveDbEntity;
+pub use prism_db_macros::DbEntity;
 
 #[cfg(feature = "sqlite")]
 pub use prism_db_sqlite::{SqlitePool, SqlitePoolOptions, SqliteDriver, SqliteTransaction};

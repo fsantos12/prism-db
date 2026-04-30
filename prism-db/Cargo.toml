@@ -7,7 +7,7 @@ license.workspace = true
 [features]
 default = ["runtime-tokio-rustls"]
 
-orm      = ["dep:prism-db-orm"]
+orm      = ["dep:prism-db-orm", "dep:prism-db-macros"]
 sqlite   = ["dep:prism-db-sqlite"]
 postgres = ["dep:prism-db-postgres"]
 mysql    = ["dep:prism-db-mysql"]
@@ -36,6 +36,7 @@ runtime-async-std-native-tls = [
 [dependencies]
 prism-db-core   = { workspace = true }
 prism-db-orm    = { workspace = true, optional = true }
+prism-db-macros = { workspace = true, optional = true }
 
 prism-db-sqlite   = { workspace = true, optional = true }
 prism-db-postgres = { workspace = true, optional = true }

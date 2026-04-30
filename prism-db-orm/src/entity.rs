@@ -1,5 +1,4 @@
-﻿use async_trait::async_trait;
-use prism_db_core::{driver::executor::DbExecutor, query::{DeleteQuery, FilterDefinition, InsertQuery, UpdateQuery}, types::{DbResult, DbRow, DbValue}};
+﻿use prism_db_core::{driver::executor::DbExecutor, query::{DeleteQuery, FilterDefinition, InsertQuery, UpdateQuery}, types::{DbResult, DbRow, DbValue}};
 
 /// Core ORM trait for mapping between Rust types and database rows.
 ///
@@ -10,7 +9,6 @@ use prism_db_core::{driver::executor::DbExecutor, query::{DeleteQuery, FilterDef
 /// - Row deserialization via `from_db()`
 ///
 /// The primary key is used for change tracking and automatic WHERE clause generation.
-#[async_trait]
 pub trait DbEntityTrait: Clone {
     /// Returns the database table name for this entity type.
     fn table_name() -> &'static str;

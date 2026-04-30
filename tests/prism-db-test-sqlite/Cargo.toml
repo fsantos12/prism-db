@@ -1,0 +1,26 @@
+[package]
+name = "prism-db-test-sqlite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+
+[[test]]
+name = "crud"
+path = "src/crud.rs"
+
+[[test]]
+name = "orm"
+path = "src/orm.rs"
+
+[[test]]
+name = "bench"
+path = "src/bench.rs"
+
+[dependencies]
+prism-db    = { workspace = true, features = ["orm", "sqlite"] }
+prism-db-test = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
