@@ -1420,7 +1420,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "rust_decimal",
- "serde",
  "serde_json",
  "smallvec",
  "smol_str",
@@ -1449,7 +1448,6 @@ dependencies = [
  "serde_json",
  "simple-db-core",
  "sqlx",
- "thiserror",
  "tokio",
  "uuid",
 ]
@@ -1459,9 +1457,7 @@ name = "simple-db-orm"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "futures",
  "simple-db-core",
- "tokio",
 ]
 
 [[package]]
@@ -1475,7 +1471,6 @@ dependencies = [
  "serde_json",
  "simple-db-core",
  "sqlx",
- "thiserror",
  "tokio",
  "uuid",
 ]
@@ -1491,9 +1486,15 @@ dependencies = [
  "serde_json",
  "simple-db-core",
  "sqlx",
- "thiserror",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "simple-db-test"
+version = "0.1.0"
+dependencies = [
+ "simple-db",
 ]
 
 [[package]]

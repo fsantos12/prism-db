@@ -6,7 +6,9 @@ members = [
     "simple-db-macros",
     "drivers/simple-db-mysql",
     "drivers/simple-db-postgres",
-    "drivers/simple-db-sqlite", "simple-db",
+    "drivers/simple-db-sqlite",
+    "simple-db",
+    "tests/simple-db-test",
 ]
 
 [workspace.package]

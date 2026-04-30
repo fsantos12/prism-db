@@ -1,12 +1,10 @@
 [package]
-name = "simple-db-orm"
+name = "simple-db-test"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 # --- Internal ---
-simple-db-core = { workspace = true }
+simple-db = { workspace = true, features = ["orm"] }
 
-# --- Async & Runtime ---
-async-trait = { workspace = true }

@@ -6,7 +6,6 @@ license.workspace = true
 
 [dependencies]
 # --- Serialization & Formats ---
-serde      = { workspace = true }
 serde_json = { workspace = true }
 
 # --- Types & Utils---
